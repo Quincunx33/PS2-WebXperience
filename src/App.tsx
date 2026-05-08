@@ -1,13 +1,35 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PS2Startup from "./components/PS2Startup";
 import PS2Dashboard from "./components/PS2Dashboard";
 import PS2Background from "./components/PS2Background";
+import { soundService } from "./services/soundService";
 import { motion, AnimatePresence } from "motion/react";
 
 type AppState = "intro" | "startup" | "dashboard";
 
 export default function App() {
   const [state, setState] = useState<AppState>("intro");
+
+  useEffect(() => {
+    // Enable sound via user interaction constraint handling
+    const enableAudio = () => {
+      soundService.init();
+      window.removeEventListener('click', enableAudio);
+      window.removeEventListener('keydown', enableAudio);
+    };
+    window.addEventListener('click', enableAudio);
+    window.addEventListener('keydown', enableAudio);
+    return () => {
+      window.removeEventListener('click', enableAudio);
+      window.removeEventListener('keydown', enableAudio);
+    };
+  }, []);
+
+  const handleStart = () => {
+    soundService.init();
+    soundService.playStartup();
+    setState("startup");
+  };
 
   return (
     <div className="min-h-screen bg-black text-white font-sans selection:bg-blue-500/30">
@@ -31,7 +53,8 @@ export default function App() {
             </motion.div>
             
             <button
-              onClick={() => setState("startup")}
+              onClick={handleStart}
+              onMouseEnter={() => soundService.playHover()}
               className="group relative px-12 py-4 overflow-hidden rounded-full border border-white/20 hover:border-white/50 transition-colors"
             >
               <div className="relative z-10 flex flex-col items-center">

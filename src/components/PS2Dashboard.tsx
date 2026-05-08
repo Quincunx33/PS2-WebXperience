@@ -4,6 +4,7 @@ import { Settings, Disc, Box, ChevronRight, Info, AlertTriangle, Database, HardD
 import PS2Clock from "./PS2Clock";
 import { StorageService, StoredGame } from "../services/storageService";
 import PS2VirtualController from "./PS2VirtualController";
+import { soundService } from "../services/soundService";
 
 type Screen = "main" | "storage" | "config" | "emulator" | "running" | "customizer";
 
@@ -55,6 +56,14 @@ const DEFAULT_V_POSITIONS = {
 
 export default function PS2Dashboard() {
   const [screen, setScreen] = useState<Screen>("main");
+  
+  const handleSetScreen = (newScreen: Screen) => {
+    if (newScreen !== screen) {
+      soundService.playWhoosh();
+      setScreen(newScreen);
+    }
+  };
+
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [fileName, setFileName] = useState<string | null>(null);
   const [showError, setShowError] = useState(false);
@@ -173,7 +182,7 @@ export default function PS2Dashboard() {
   };
 
   const handleRunGame = () => {
-    setScreen("running");
+    handleSetScreen("running");
   };
 
   const menuItems = [
@@ -205,6 +214,33 @@ export default function PS2Dashboard() {
 
   // FPS Counter Logic
   const [fps, setFps] = useState(0);
+  const [activeButtons, setActiveButtons] = useState<string[]>([]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement?.tagName === 'INPUT') return;
+      const keyMapEntry = Object.entries(config.keyMapping).find(([_, key]) => key === e.key);
+      if (keyMapEntry) {
+        setActiveButtons(prev => prev.includes(keyMapEntry[0]) ? prev : [...prev, keyMapEntry[0]]);
+        // Here you would proxy to play.js via Emscripten if running
+      }
+    };
+    
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (document.activeElement?.tagName === 'INPUT') return;
+      const keyMapEntry = Object.entries(config.keyMapping).find(([_, key]) => key === e.key);
+      if (keyMapEntry) {
+        setActiveButtons(prev => prev.filter(b => b !== keyMapEntry[0]));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [config.keyMapping]);
   useEffect(() => {
     if (!config.showFPS) return;
     
@@ -394,7 +430,7 @@ export default function PS2Dashboard() {
             
             <div className={`fixed top-4 right-4 sm:top-6 sm:right-6 flex flex-col sm:flex-row gap-2 z-[110] transition-all ${selectedKey ? 'opacity-0 pointer-events-none' : ''}`}>
               <button 
-                onClick={() => setScreen("main")}
+                onClick={() => { soundService.playCancel(); handleSetScreen("main"); }}
                 className="px-4 py-2 bg-blue-600/60 border border-blue-500/30 text-white/90 rounded-md text-[8px] uppercase font-bold tracking-widest active:scale-95 backdrop-blur-sm shadow-xl"
               >
                 Save
@@ -430,8 +466,14 @@ export default function PS2Dashboard() {
               {menuItems.map((item, idx) => (
                 <motion.button
                   key={item.id}
-                  onClick={() => setScreen(item.id as Screen)}
-                  onMouseEnter={() => setSelectedIdx(idx)}
+                  onClick={() => {
+                    soundService.playSelect();
+                    handleSetScreen(item.id as Screen);
+                  }}
+                  onMouseEnter={() => {
+                    soundService.playHover();
+                    setSelectedIdx(idx);
+                  }}
                   className={`
                     flex items-center justify-between p-3 sm:p-4 rounded-xl transition-all duration-300
                     ${selectedIdx === idx ? 'bg-white/20 border-l-4 border-blue-400 shadow-lg shadow-blue-500/10' : 'bg-white/5 border-l-4 border-transparent'}
@@ -530,7 +572,7 @@ export default function PS2Dashboard() {
             </div>
 
             <button 
-              onClick={() => setScreen("main")}
+              onClick={() => { soundService.playCancel(); handleSetScreen("main"); }}
               className="mt-6 px-10 py-3 border border-white/20 text-white/70 hover:bg-white/10 rounded-full transition-all uppercase text-[10px] font-bold tracking-[0.2em]"
             >
               Back to Menu
@@ -638,7 +680,7 @@ export default function PS2Dashboard() {
 
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <button 
-                onClick={() => setScreen("main")}
+                onClick={() => { soundService.playCancel(); handleSetScreen("main"); }}
                 className="px-6 py-2.5 sm:px-10 sm:py-3 border border-white/20 text-white/70 hover:bg-white/10 rounded-full transition-all uppercase text-[9px] sm:text-[10px] font-bold tracking-[0.2em]"
               >
                 Back
@@ -721,7 +763,7 @@ export default function PS2Dashboard() {
                       {["512MB", "1GB", "2GB"].map(ram => (
                         <button 
                           key={ram} 
-                          onClick={() => setConfig({ ...config, ramAllocation: ram })}
+                          onClick={() => { soundService.playHover(); setConfig({ ...config, ramAllocation: ram }); }}
                           className={`flex-1 py-2 rounded-lg border text-[10px] uppercase font-bold transition-all ${config.ramAllocation === ram ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-white/40'}`}
                         >
                           {ram}
@@ -740,7 +782,7 @@ export default function PS2Dashboard() {
               <div className="bg-white/5 border border-white/10 rounded-2xl p-5 sm:p-6 space-y-4">
                 <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[10px] sm:text-xs">Controller Setup</h3>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl cursor-pointer" onClick={() => setConfig({ ...config, virtualControls: !config.virtualControls })}>
+                  <div className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl cursor-pointer" onClick={() => { soundService.playHover(); setConfig({ ...config, virtualControls: !config.virtualControls }); }}>
                     <div className="flex items-center gap-3">
                       <Cpu className="w-4 h-4 text-blue-400" />
                       <span className="text-[10px] text-white font-bold uppercase">Virtual Controls</span>
@@ -754,7 +796,10 @@ export default function PS2Dashboard() {
                   </div>
                   
                   <button 
-                    onClick={() => setScreen("customizer")}
+                    onClick={() => {
+                      soundService.playSelect();
+                      handleSetScreen("customizer");
+                    }}
                     className="w-full py-3 rounded-xl border flex items-center justify-center gap-2 transition-all font-bold text-[10px] uppercase tracking-widest bg-white/5 border-white/10 text-blue-400 hover:bg-white/10 active:scale-95"
                   >
                     <GripVertical className="w-4 h-4" />
@@ -925,7 +970,8 @@ export default function PS2Dashboard() {
 
             <button 
               onClick={() => {
-                setScreen("main");
+                soundService.playCancel();
+                handleSetScreen("main");
                 setConfig(prev => ({ ...prev, editLayoutMode: false }));
               }}
               className="mt-6 px-10 py-3 border border-white/20 text-white/70 hover:bg-white/10 rounded-full transition-all uppercase text-[10px] font-bold tracking-[0.2em]"
@@ -978,13 +1024,27 @@ export default function PS2Dashboard() {
                   <button 
                     onClick={() => {
                       setIsEmulatorLoading(true);
+                      
+                      // Inject Emscripten Module Config
+                      const ramMB = config.ramAllocation === "2GB" ? 2048 : (config.ramAllocation === "1GB" ? 1024 : 512);
+                      (window as any).Module = {
+                        canvas: document.getElementById('canvas'),
+                        TOTAL_MEMORY: ramMB * 1024 * 1024,
+                        arguments: ['-cdrom', fileName || 'dummy.iso'],
+                        preRun: [() => {
+                          console.log(`[Engine] RAM: ${ramMB}MB Video: ${config.resolution} @ ${config.fpsTarget}FPS`);
+                        }],
+                        print: (text: string) => console.log('[Play!]', text),
+                        printErr: (text: string) => console.error('[Play!]', text)
+                      };
+
                       const script = document.createElement('script');
                       script.src = '/play.js';
                       script.async = true;
                       script.onload = () => console.log("Play! JS loaded");
                       script.onerror = () => {
                         alert("Error: play.js not found.");
-                        setScreen("emulator");
+                        handleSetScreen("emulator");
                         setIsEmulatorLoading(false);
                       };
                       document.body.appendChild(script);
@@ -1059,7 +1119,7 @@ export default function PS2Dashboard() {
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl cursor-pointer" onClick={() => setConfig({ ...config, editLayoutMode: !config.editLayoutMode })}>
+                    <div className="flex items-center justify-between p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl cursor-pointer" onClick={() => { soundService.playSelect(); setConfig({ ...config, editLayoutMode: !config.editLayoutMode }); }}>
                       <span className="text-[9px] text-blue-300 font-bold uppercase">Edit Button Layout</span>
                       <div className={`w-8 h-4 rounded-full relative transition-all ${config.editLayoutMode ? 'bg-blue-600' : 'bg-zinc-700'}`}>
                          <motion.div animate={{ x: config.editLayoutMode ? 18 : 2 }} className="absolute top-[2px] w-3 h-3 bg-white rounded-full" />
@@ -1071,9 +1131,10 @@ export default function PS2Dashboard() {
                     <button 
                       onClick={() => {
                         setShowInGameSettings(false);
-                        setScreen("main");
+                        handleSetScreen("main");
                         setFileName(null);
                         setIsEmulatorLoading(false);
+                        (window as any).Module = null; // Clean up module slightly
                       }}
                       className="w-full py-2.5 bg-red-500/10 text-red-400 rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-red-500/20 transition-all border border-red-500/10"
                     >
@@ -1093,6 +1154,7 @@ export default function PS2Dashboard() {
                 <PS2VirtualController 
                   isEditing={config.editLayoutMode}
                   positions={config.vPositions}
+                  activeButtons={activeButtons}
                   onResetAll={() => {
                     if (confirm("Reset ALL button positions and sizes to default?")) {
                       setConfig(prev => ({ ...prev, vPositions: DEFAULT_V_POSITIONS }));
@@ -1115,7 +1177,7 @@ export default function PS2Dashboard() {
         return (
           <div className="text-white">
             Under Construction / কাজ চলছে...
-            <button onClick={() => setScreen("main")} className="block mt-4 text-blue-400 underline">Back</button>
+            <button onClick={() => { soundService.playCancel(); handleSetScreen("main"); }} className="block mt-4 text-blue-400 underline">Back</button>
           </div>
         );
     }

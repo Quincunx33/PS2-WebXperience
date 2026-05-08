@@ -16,6 +16,7 @@ interface ControllerProps {
   selectedKey?: string | null;
   onSelect?: (key: string | null) => void;
   onResetAll?: () => void;
+  activeButtons?: string[];
 }
 
 export default function PS2VirtualController({ 
@@ -24,7 +25,8 @@ export default function PS2VirtualController({
   onPositionChange,
   selectedKey = null,
   onSelect,
-  onResetAll
+  onResetAll,
+  activeButtons = []
 }: ControllerProps) {
   const [windowWidth, setWindowWidth] = React.useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   const [draggingKey, setDraggingKey] = React.useState<string | null>(null);
@@ -166,6 +168,7 @@ export default function PS2VirtualController({
               ${selectedKey === key ? 'ring-4 ring-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.5)]' : ''}
               ${isEditing ? 'hover:ring-2 hover:ring-white/50' : ''}
               ${draggingKey === key ? 'ring-2 ring-dashed ring-yellow-400 opacity-80 scale-105 shadow-2xl' : ''}
+              ${activeButtons.includes(key) && !isEditing ? 'brightness-150 scale-110 drop-shadow-[0_0_20px_rgba(255,255,255,0.8)]' : ''}
             `}>
               {renderIcon(key)}
               {isEditing && selectedKey === key && (
