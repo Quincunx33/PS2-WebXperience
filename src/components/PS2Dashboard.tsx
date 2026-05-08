@@ -64,7 +64,7 @@ export default function PS2Dashboard() {
   };
 
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [selectedGame, setSelectedGame] = useState<GameMetadata | null>(null);
   const [showError, setShowError] = useState(false);
   const [isEmulatorLoading, setIsEmulatorLoading] = useState(false);
   const [storedGames, setStoredGames] = useState<GameMetadata[]>([]);
@@ -189,16 +189,24 @@ export default function PS2Dashboard() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-      setFileName(file.name);
       
       try {
         setIsInstalling(true);
         setInstallProgress(0);
-        await StorageService.saveGame(file, (p) => setInstallProgress(p));
+        const gameId = await StorageService.saveGame(file, (p) => setInstallProgress(p));
+        const newGame: GameMetadata = {
+          id: gameId,
+          name: file.name,
+          size: file.size,
+          type: file.name.split('.').pop()?.toUpperCase() || "ISO",
+          date: Date.now(),
+          totalChunks: Math.ceil(file.size / (10 * 1024 * 1024))
+        };
+        setSelectedGame(newGame);
         await refreshStorage();
       } catch (err: any) {
         alert(err.message || "Failed to save game to IndexedDB");
-        setFileName(null);
+        setSelectedGame(null);
       } finally {
         setIsInstalling(false);
       }
@@ -358,8 +366,7 @@ export default function PS2Dashboard() {
             </div>
 
             <PS2VirtualController 
-              key={resetKey}
-              isEditing={true}
+               isEditing={true}
               positions={config.vPositions}
               selectedKey={selectedKey}
               onSelect={setSelectedKey}
@@ -609,7 +616,7 @@ export default function PS2Dashboard() {
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              setFileName(game.name);
+                              setSelectedGame(game);
                               soundService.playConfirm();
                               handleRunGame();
                             }}
@@ -755,7 +762,7 @@ export default function PS2Dashboard() {
             </div>
             
             <div className="w-full space-y-4">
-               <label className={`w-full h-32 sm:h-48 border-2 border-dashed ${fileName ? 'border-green-500/40 bg-green-500/5' : 'border-blue-500/20'} rounded-2xl flex flex-col items-center justify-center gap-4 hover:bg-blue-500/10 cursor-pointer transition-all relative overflow-hidden group`}>
+               <label className={`w-full h-32 sm:h-48 border-2 border-dashed ${selectedGame ? 'border-green-500/40 bg-green-500/5' : 'border-blue-500/20'} rounded-2xl flex flex-col items-center justify-center gap-4 hover:bg-blue-500/10 cursor-pointer transition-all relative overflow-hidden group`}>
                 <input type="file" className="hidden" accept=".iso,.elf,.bin" onChange={handleFileChange} disabled={isInstalling} />
                 
                 {isInstalling ? (
@@ -775,13 +782,13 @@ export default function PS2Dashboard() {
                       Do not refresh browser
                     </span>
                   </div>
-                ) : fileName ? (
+                ) : selectedGame ? (
                   <div className="text-center px-4 animate-in fade-in zoom-in duration-300">
                     <div className="w-16 h-16 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center mx-auto mb-4">
                        <Play className="w-6 h-6 text-green-400 fill-green-400/20" />
                     </div>
                     <span className="text-green-300 font-bold uppercase tracking-[0.2em] block text-xs mb-1">Disc Authenticated</span>
-                    <span className="text-white/40 text-[9px] uppercase truncate max-w-[200px] block mx-auto">{fileName}</span>
+                    <span className="text-white/40 text-[9px] uppercase truncate max-w-[200px] block mx-auto">{selectedGame?.name}</span>
                   </div>
                 ) : (
                   <>
@@ -805,14 +812,14 @@ export default function PS2Dashboard() {
               </button>
               <button 
                 onClick={handleRunGame}
-                disabled={!fileName || integrity.wasm !== 'ok'}
+                disabled={!selectedGame || integrity.wasm !== 'ok'}
                 className={`flex-1 py-4 rounded-2xl transition-all uppercase text-[10px] font-bold tracking-[0.3em] flex items-center justify-center gap-3 ${
-                  fileName && integrity.wasm === 'ok'
+                  selectedGame && integrity.wasm === 'ok'
                     ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-2xl shadow-blue-500/40 border-t border-white/20' 
                     : 'bg-white/5 border border-white/5 text-white/10 cursor-not-allowed'
                 }`}
               >
-                {fileName && integrity.wasm === 'ok' && <Play className="w-3 h-3 fill-current" />}
+                {selectedGame && integrity.wasm === 'ok' && <Play className="w-3 h-3 fill-current" />}
                 {integrity.wasm === 'checking' ? 'Validating...' : 'Initiate Boot'}
               </button>
             </div>
@@ -1153,95 +1160,112 @@ export default function PS2Dashboard() {
                     
                     <div className="space-y-2">
                        <span className="text-white font-bold tracking-[0.4em] text-sm uppercase block">Mounting Virtual Disc</span>
-                       <span className="text-white/20 text-[9px] uppercase tracking-widest block max-w-[200px] truncate mx-auto">{fileName}</span>
+                       <span className="text-white/20 text-[9px] uppercase tracking-widest block max-w-[200px] truncate mx-auto">{selectedGame?.name}</span>
                     </div>
                     <button 
-                      onClick={() => {
+                      onClick={async () => {
+                        if (!selectedGame) return;
                         setIsEmulatorLoading(true);
                       
+                      // Fetch the game blob
+                      let gameBlob: Blob;
+                      try {
+                        gameBlob = await StorageService.getFullFile(selectedGame.id);
+                      } catch (err) {
+                        console.error("Failed to fetch game data:", err);
+                        alert("Failed to load game data from storage");
+                        setIsEmulatorLoading(false);
+                        return;
+                      }
+
                       // Inject Emscripten Module Config
                       const ramMB = config.ramAllocation === "2GB" ? 2048 : (config.ramAllocation === "1GB" ? 1024 : 512);
                       
                       const canvasElem = document.getElementById('canvas') as HTMLCanvasElement;
                       
-                      // Step 4: Internal Resolution Scaling & Frame Buffer Control
-                      // GTA SA is fill-rate limited. By decoupling the canvas coordinate size
-                      // from the CSS display size, we stop mobile High-DPI (Retina) screens 
-                      // from trying to render the game at 4K.
                       const scaleFactor = config.resolution.includes("2x") ? 2 : (config.resolution.includes("3x") ? 3 : 1);
-                      // Native PS2 NTSC resolution base
                       canvasElem.width = 640 * scaleFactor;
                       canvasElem.height = 448 * scaleFactor;
-                      // Use pixelated upscaling for 1x to keep sharpness, let browser filter larger resolutions
                       canvasElem.style.imageRendering = scaleFactor === 1 ? 'pixelated' : 'auto';
 
-                      // Step 5: Browser Input & Event Loop Sandboxing
-                      // Prevent right-click context menu (crucial for aiming weapons in GTA)
                       canvasElem.oncontextmenu = (e) => e.preventDefault();
-                      // Auto-focus canvas to trap keyboard input immediately
                       canvasElem.tabIndex = -1;
                       canvasElem.focus();
 
-                      // Step 2, 3, 4 & 5: Advanced WebGL, WASM & Audio Optimizations
                       (window as any).Module = {
                         canvas: canvasElem,
-                        TOTAL_MEMORY: ramMB * 1024 * 1024, // GTA SA needs max RAM to hold map chunks
+                        TOTAL_MEMORY: ramMB * 1024 * 1024,
+                        ALLOW_MEMORY_GROWTH: true,
                         
-                        // Disable WASM memory growth to prevent layout thrashing lag spikes mid-game
-                        ALLOW_MEMORY_GROWTH: false, 
+                        arguments: ['-cdrom', `/games/${selectedGame.name}`],
                         
-                        arguments: ['-cdrom', fileName || 'dummy.iso'],
-                        
-                        // Dedicated Hardware Acceleration Flags
+                        locateFile: (path: string, prefix: string) => {
+                          if (path.endsWith('.wasm')) return '/play.wasm';
+                          return prefix + path;
+                        },
+
                         webglContextAttributes: {
-                          antialias: false,                  // Disable MSAA for massive performance boost in city areas
-                          alpha: false,                      // Opaque canvas allows browser to skip alpha composition
-                          preserveDrawingBuffer: false,      // Swap chain optimization (Step 4)
-                          powerPreference: 'high-performance', // Force dedicated GPU if available
+                          antialias: false,
+                          alpha: false,
+                          preserveDrawingBuffer: false,
+                          powerPreference: 'high-performance',
                           depth: true,
                           stencil: true
                         },
 
-                        // Step 3 & 4: Open-World Engine Adjustments (Audio & Sync)
                         ENV: {
-                          SDL_AUDIO_SAMPLES: '2048', // Massive buffer to prevent San Andreas radio/engine stutter during load
+                          SDL_AUDIO_SAMPLES: '2048',
                           SDL_AUDIO_CHANNELS: '2',
-                          SDL_AUDIO_FREQ: '44100', // Lock freq to prevent dynamic resampling cycles
-                          SDL_RENDER_VSYNC: '0'    // Step 4: Disable strictly SDL vsync, let browser requestAnimationFrame loop naturally
+                          SDL_AUDIO_FREQ: '44100',
+                          SDL_RENDER_VSYNC: '0'
                         },
-                        // Dedicated worker pool to decouple I/O and graphics streaming 
-                        Pthread: { poolSize: navigator.hardwareConcurrency || 4 },
-
+                        
                         preRun: [() => {
                           console.log(`[Engine] Optimized RAM: ${ramMB}MB initialized`);
-                          console.log(`[Engine] WebGL Profile: High-Performance (Anti-aliasing OFF, Alpha OFF)`);
                           
-                          // Step 3: Persistent VFS Cache Mounting for Texture streaming
-                          try {
-                            const FS = (window as any).FS;
-                            if (FS) {
+                          const FS = (window as any).FS;
+                          if (FS) {
+                            try {
+                              FS.mkdir('/games');
+                              // Standard Play! build often works better if games are mounted via WORKERFS or written directly
+                              // For simplicity and compatibility with standard Emscripten builds, we write the data if it's not too huge
+                              // or better, we use the Blob directly if WORKERFS is available
+                              if ((window as any).WORKERFS) {
+                                FS.mount((window as any).WORKERFS, {
+                                  blobs: [{ name: selectedGame.name, data: gameBlob }]
+                                }, '/games');
+                                console.log("[Engine] Mounted game via WORKERFS");
+                              } else {
+                                // Fallback to memory write (caution: memory intensive)
+                                gameBlob.arrayBuffer().then(buf => {
+                                  FS.writeFile(`/games/${selectedGame.name}`, new Uint8Array(buf));
+                                  console.log("[Engine] Wrote game to VFS memory");
+                                });
+                              }
+
                               FS.mkdir('/gta_cache');
-                              // Used to aggressively cache decompressed TXD textures and IPLs
                               FS.mount((window as any).IDBFS, {}, '/gta_cache');
                               FS.syncfs(true, (err: any) => {
                                 if (err) console.warn('[Engine] VFS Cache Sync warn:', err);
-                                else console.log('[Engine] High-Speed IDBFS Map Cache Mounted (/gta_cache)');
                               });
+                            } catch(err) {
+                              console.error('[Engine] FS Error:', err);
                             }
-                          } catch(err) {
-                            console.log('[Engine] FS module not fully loaded during preRun, skipping VFS cache');
                           }
                         }],
                         print: (text: string) => console.log('[Play!]', text),
-                        printErr: (text: string) => console.error('[Play!]', text)
+                        printErr: (text: string) => console.error('[Play!]', text),
+                        onRuntimeInitialized: () => {
+                          console.log("[Engine] Runtime Initialized");
+                        }
                       };
 
                         const script = document.createElement('script');
                         script.src = '/play.js';
                         script.async = true;
-                        script.onload = () => console.log("Engine Active");
+                        script.onload = () => console.log("Engine Script Loaded");
                         script.onerror = () => {
-                          console.warn("Core script not found. Running in simulation mode.");
+                          alert("Fatal: could not load play.js. Please ensure it exists in the public folder.");
                         };
                         document.body.appendChild(script);
                       }}
