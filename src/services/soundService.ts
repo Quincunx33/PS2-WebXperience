@@ -18,41 +18,51 @@ class SoundService {
   toggle() { this.isEnabled = !this.isEnabled; return this.isEnabled; }
   getEnabled() { return this.isEnabled; }
 
-  private playTone(freq: number, type: OscillatorType, duration: number, vol = 0.1) {
+  private playTone(freq: number, type: OscillatorType, duration: number, vol = 0.1, delay = 0) {
     if (!this.isEnabled) return;
     this.init();
     if (!this.audioCtx) return;
 
     try {
+      const startTime = this.audioCtx.currentTime + (delay || 0);
       const osc = this.audioCtx.createOscillator();
       const gain = this.audioCtx.createGain();
 
       osc.type = type;
-      osc.frequency.setValueAtTime(freq, this.audioCtx.currentTime);
+      osc.frequency.setValueAtTime(freq, startTime);
 
-      gain.gain.setValueAtTime(vol, this.audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + duration);
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(vol, startTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
 
       osc.connect(gain);
       gain.connect(this.audioCtx.destination);
 
-      osc.start();
-      osc.stop(this.audioCtx.currentTime + duration);
+      osc.start(startTime);
+      osc.stop(startTime + duration);
     } catch (e) {
       console.warn("Sound play failed", e);
     }
   }
 
   playHover() {
-    this.playTone(600, 'sine', 0.05, 0.03);
+    this.playTone(440, 'sine', 0.05, 0.02);
   }
 
   playSelect() {
-    this.playTone(880, 'triangle', 0.1, 0.08);
+    if (!this.isEnabled) return;
+    this.init();
+    if (!this.audioCtx) return;
+    this.playTone(880, 'triangle', 0.1, 0.05, 0);
+    this.playTone(1174, 'triangle', 0.2, 0.05, 0.05);
+  }
+
+  playConfirm() {
+    this.playSelect();
   }
 
   playCancel() {
-    this.playTone(300, 'sawtooth', 0.1, 0.05);
+    this.playTone(220, 'sawtooth', 0.15, 0.04);
   }
   
   playStartup() {

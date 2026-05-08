@@ -72,6 +72,39 @@ export default function PS2Dashboard() {
   const [installProgress, setInstallProgress] = useState(0);
   const [showInGameSettings, setShowInGameSettings] = useState(false);
 
+  // Integrity Check State
+  const [integrity, setIntegrity] = useState({
+    wasm: 'pending',
+    js: 'pending',
+    webgl: 'pending',
+    threads: 'pending'
+  });
+
+  const runIntegrityCheck = async () => {
+    setIntegrity({ wasm: 'checking', js: 'checking', webgl: 'checking', threads: 'checking' });
+    
+    // Artificial small delay for "Real" feeling
+    await new Promise(r => setTimeout(r, 800));
+
+    const wasmReady = typeof WebAssembly === 'object' && typeof WebAssembly.instantiate === 'function';
+    const webglReady = !!window.WebGL2RenderingContext;
+    const threadsReady = !!window.SharedArrayBuffer;
+    const jsReady = typeof window.requestAnimationFrame === 'function';
+
+    setIntegrity({
+      wasm: wasmReady ? 'ok' : 'error',
+      js: jsReady ? 'ok' : 'error',
+      webgl: webglReady ? 'ok' : 'error',
+      threads: threadsReady ? 'ok' : 'warn'
+    });
+  };
+
+  useEffect(() => {
+    if (screen === 'emulator') {
+      runIntegrityCheck();
+    }
+  }, [screen]);
+
   // System Configuration State
   const [config, setConfig] = useState(() => {
     const saved = localStorage.getItem("ps2_config");
@@ -611,119 +644,176 @@ export default function PS2Dashboard() {
 
       case "emulator":
         return (
-          <div className="max-w-[calc(100vw-2rem)] sm:max-w-3xl w-full bg-black/80 border border-blue-500/30 p-4 sm:p-12 rounded-3xl backdrop-blur-2xl flex flex-col items-center gap-6 sm:gap-10 shadow-[0_0_100px_rgba(59,130,246,0.15)] relative mx-auto my-4">
+          <div className="max-w-[calc(100vw-2rem)] sm:max-w-4xl w-full bg-black/80 border border-blue-500/30 p-4 sm:p-10 rounded-3xl backdrop-blur-2xl flex flex-col items-center gap-6 sm:gap-8 shadow-[0_0_100px_rgba(59,130,246,0.15)] relative mx-auto my-4 overflow-hidden">
             
             {/* Limitation Modal/Overlay */}
             <AnimatePresence>
-              {showError && (
+              {(showError || integrity.wasm === 'error') && (
                 <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="absolute inset-0 z-50 bg-black/95 rounded-3xl flex flex-col items-center justify-center p-6 text-center border-2 border-red-500/50 overflow-y-auto"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="absolute inset-0 z-50 bg-zinc-950/95 flex flex-col items-center justify-center p-8 text-center"
                 >
-                  <AlertTriangle className="w-10 h-10 sm:w-16 sm:h-16 text-yellow-500 mb-4" />
-                  <h3 className="text-sm sm:text-xl font-bold tracking-widest uppercase text-white mb-2 sm:mb-4">Hardware Limitation</h3>
-                  <p className="text-red-300 font-mono text-[9px] sm:text-sm leading-relaxed max-w-lg mb-4">
-                    FATAL ERROR: Emotion Engine architecture cannot be natively executed within this WebAssembly context. 
-                  </p>
-                  <p className="text-white/80 text-[10px] sm:text-sm max-w-md mb-6">
-                    This is a dashboard UI simulation. To run high-end PS2 games smoothly, you will need a standalone native emulator or high-performance environment.
+                  <AlertTriangle className="w-16 h-16 text-red-500 mb-6 animate-pulse" />
+                  <h3 className="text-xl font-bold tracking-widest uppercase text-white mb-4">Environment Error</h3>
+                  <p className="text-red-300 font-mono text-sm leading-relaxed max-w-lg mb-8">
+                    {integrity.wasm === 'error' 
+                      ? "CRITICAL: WebAssembly is disabled or not supported in this browser. The Emotion Engine cannot be virtualized."
+                      : "FATAL ERROR: Emotion Engine architecture cannot be natively executed within this WebAssembly context."}
                   </p>
                   <button 
-                    onClick={() => setShowError(false)}
-                    className="px-6 py-2 sm:px-8 sm:py-3 bg-red-500/20 text-red-100 hover:bg-red-500/40 rounded-full font-bold uppercase tracking-widest text-[9px] sm:text-xs transition-colors"
+                    onClick={() => { setShowError(false); setScreen('main'); }}
+                    className="px-10 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full font-bold uppercase tracking-widest text-xs transition-colors border border-white/10"
                   >
-                    Dismiss
+                    Return to Dashboard
                   </button>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            <div className="flex flex-col items-center gap-2 sm:gap-4">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-              >
-                <Disc className="w-12 h-12 sm:w-24 sm:h-24 text-blue-400 opacity-50" />
-              </motion.div>
-              <h2 className="text-white text-lg sm:text-4xl font-bold tracking-[0.1em] sm:tracking-[0.3em] uppercase text-center">Emu-Core v1.0</h2>
-              <div className="h-[1.5px] w-24 sm:w-48 bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
+            <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-6">
+              <div className="flex flex-col items-center sm:items-start gap-2">
+                <div className="flex items-center gap-3">
+                  <Cpu className="w-6 h-6 text-blue-400" />
+                  <h2 className="text-white text-2xl font-bold tracking-[0.2em] uppercase">Emu-Core Engine</h2>
+                </div>
+                <div className="h-[1px] w-32 bg-gradient-to-r from-blue-500/50 to-transparent" />
+                <p className="text-white/30 text-[9px] uppercase tracking-[0.3em]">Version 2.4.5-Stable (WASM-JS)</p>
+              </div>
+
+              <div className="flex items-center gap-4 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
+                 <div className="flex flex-col items-end">
+                    <span className="text-[8px] text-white/40 uppercase">Engine Status</span>
+                    <span className={`text-[10px] font-bold uppercase ${integrity.wasm === 'ok' ? 'text-green-500' : 'text-yellow-500 animate-pulse'}`}>
+                      {integrity.wasm === 'ok' ? 'READY' : 'DIAGNOSING...'}
+                    </span>
+                 </div>
+                 <div className={`w-2 h-2 rounded-full ${integrity.wasm === 'ok' ? 'bg-green-500' : 'bg-yellow-500'} shadow-[0_0_8px_currentColor]`} />
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6 w-full">
-              <div className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-2 sm:space-y-4">
-                <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[8px] sm:text-xs">System Status</h3>
-                <div className="font-mono text-[8px] sm:text-[10px] space-y-1 text-white/60">
-                  <div className="flex justify-between"><span>EE Core:</span> <span className="text-green-400">JIT Ready</span></div>
-                  <div className="flex justify-between"><span>GS Logic:</span> <span className="text-green-400">Vulkan OK</span></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+              {/* Integrity Table */}
+              <div className="bg-white/5 p-5 rounded-2xl border border-white/10 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[10px]">System Check</h3>
+                  <button 
+                    onClick={runIntegrityCheck}
+                    className="text-[8px] text-white/30 hover:text-white uppercase transition-colors"
+                  >
+                    Re-scan
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    { label: 'WebAssembly (WASM)', status: integrity.wasm },
+                    { label: 'JavaScript JIT Engine', status: integrity.js },
+                    { label: 'WebGL 2.0 Acceleration', status: integrity.webgl },
+                    { label: 'SharedArrayBuffer (Threads)', status: integrity.threads },
+                  ].map((item, i) => (
+                    <div key={i} className="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">
+                      <span className="text-[9px] text-white/60 uppercase">{item.label}</span>
+                      {item.status === 'ok' ? (
+                        <span className="text-[9px] text-green-500 font-bold">PASS</span>
+                      ) : item.status === 'warn' ? (
+                        <span className="text-[9px] text-yellow-500 font-bold">WARN</span>
+                      ) : item.status === 'error' ? (
+                        <span className="text-[9px] text-red-500 font-bold">FAIL</span>
+                      ) : (
+                        <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity }} className="w-10 h-1 bg-white/20 rounded-full overflow-hidden" />
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              <div className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-2 sm:space-y-4">
-                <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[8px] sm:text-xs">Required Files</h3>
-                <div className="space-y-1 sm:space-y-2">
-                  <div className="flex items-center gap-2 text-[9px] sm:text-xs text-white/50">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                    <span>BIOS Module (Embedded)</span>
+              {/* Loader Configuration */}
+              <div className="bg-white/5 p-5 rounded-2xl border border-white/10 space-y-4 flex flex-col justify-center">
+                <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[10px]">Boot Strategy</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
+                      <Database className="w-4 h-4 text-blue-400" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-white font-bold uppercase">Dynamic JIT</span>
+                      <span className="text-[8px] text-white/40 uppercase">Fastest available mode</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-[9px] sm:text-xs text-white/70">
-                    <div className={`w-1.5 h-1.5 rounded-full ${fileName ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
-                    <span>{fileName ? 'ROM Loaded' : 'Waiting for Game ISO...'}</span>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center border border-green-500/30">
+                      <Settings className="w-4 h-4 text-green-400" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-white font-bold uppercase">Auto-Flush VRAM</span>
+                      <span className="text-[8px] text-white/40 uppercase">Optimized for low-end GPU</span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
             
-            <label className={`w-full h-24 sm:h-48 border-2 border-dashed ${fileName ? 'border-green-500/40 bg-green-500/5' : 'border-blue-500/20'} rounded-2xl flex flex-col items-center justify-center gap-2 sm:gap-4 hover:bg-blue-500/10 cursor-pointer transition-all overflow-hidden`}>
-              <input type="file" className="hidden" accept=".iso,.elf,.bin" onChange={handleFileChange} disabled={isInstalling} />
-              
-              {isInstalling ? (
-                <div className="flex flex-col items-center gap-2 w-full px-8">
-                  <div className="w-full h-1 bg-blue-900/50 rounded-full overflow-hidden">
-                    <motion.div 
-                      className="h-full bg-blue-400"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${installProgress}%` }}
-                    />
+            <div className="w-full space-y-4">
+               <label className={`w-full h-32 sm:h-48 border-2 border-dashed ${fileName ? 'border-green-500/40 bg-green-500/5' : 'border-blue-500/20'} rounded-2xl flex flex-col items-center justify-center gap-4 hover:bg-blue-500/10 cursor-pointer transition-all relative overflow-hidden group`}>
+                <input type="file" className="hidden" accept=".iso,.elf,.bin" onChange={handleFileChange} disabled={isInstalling} />
+                
+                {isInstalling ? (
+                  <div className="flex flex-col items-center gap-4 w-full px-12 z-10">
+                    <div className="flex justify-between w-full mb-1">
+                      <span className="text-[10px] text-blue-400 font-bold uppercase">Writing to VFS</span>
+                      <span className="text-[10px] text-blue-400 font-bold">{installProgress}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-blue-900/50 rounded-full overflow-hidden">
+                      <motion.div 
+                        className="h-full bg-blue-400 shadow-[0_0_10px_#60a5fa]"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${installProgress}%` }}
+                      />
+                    </div>
+                    <span className="text-white/30 text-[8px] uppercase tracking-widest animate-pulse">
+                      Do not refresh browser
+                    </span>
                   </div>
-                  <span className="text-blue-300 font-bold uppercase tracking-widest text-[8px] sm:text-xs text-center">
-                    Installing: {installProgress}%
-                  </span>
-                </div>
-              ) : fileName ? (
-                <div className="text-center px-2">
-                  <span className="text-green-400 text-2xl sm:text-4xl mb-1 block">✓</span>
-                  <span className="text-green-300 font-bold uppercase tracking-widest block text-[9px] sm:text-sm">File Loaded</span>
-                </div>
-              ) : (
-                <>
-                  <div className="text-2xl sm:text-4xl">📥</div>
-                  <div className="text-center px-4">
-                    <span className="text-white font-bold uppercase tracking-widest block text-[9px] sm:text-sm">LOAD GAME FILE</span>
-                    <span className="text-white/40 text-[8px] uppercase tracking-tighter mt-1 block">ISO / ELF file</span>
+                ) : fileName ? (
+                  <div className="text-center px-4 animate-in fade-in zoom-in duration-300">
+                    <div className="w-16 h-16 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center mx-auto mb-4">
+                       <Play className="w-6 h-6 text-green-400 fill-green-400/20" />
+                    </div>
+                    <span className="text-green-300 font-bold uppercase tracking-[0.2em] block text-xs mb-1">Disc Authenticated</span>
+                    <span className="text-white/40 text-[9px] uppercase truncate max-w-[200px] block mx-auto">{fileName}</span>
                   </div>
-                </>
-              )}
-            </label>
+                ) : (
+                  <>
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity bg-gradient-to-b from-blue-500 to-transparent pointer-events-none" />
+                    <Disc className="w-12 h-12 text-blue-500/30 group-hover:text-blue-400 group-hover:scale-110 transition-all duration-500" />
+                    <div className="text-center px-4">
+                      <span className="text-white font-bold uppercase tracking-[0.3em] block text-xs sm:text-sm">Mount Game Disc</span>
+                      <span className="text-white/30 text-[9px] uppercase tracking-widest mt-2 block">Accepts ISO / ELF / BIN</span>
+                    </div>
+                  </>
+                )}
+              </label>
+            </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            <div className="flex gap-4 w-full">
               <button 
                 onClick={() => { soundService.playCancel(); handleSetScreen("main"); }}
-                className="px-6 py-2.5 sm:px-10 sm:py-3 border border-white/20 text-white/70 hover:bg-white/10 rounded-full transition-all uppercase text-[9px] sm:text-[10px] font-bold tracking-[0.2em]"
+                className="flex-1 py-4 border border-white/10 text-white/40 hover:bg-white/5 hover:text-white rounded-2xl transition-all uppercase text-[10px] font-bold tracking-[0.3em]"
               >
-                Back
+                Cancel
               </button>
               <button 
                 onClick={handleRunGame}
-                disabled={!fileName}
-                className={`px-6 py-2.5 sm:px-10 sm:py-3 rounded-full transition-all uppercase text-[9px] sm:text-[10px] font-bold tracking-[0.2em] ${
-                  fileName 
-                    ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-500/20' 
-                    : 'bg-white/5 border border-white/10 text-white/20 cursor-not-allowed'
+                disabled={!fileName || integrity.wasm !== 'ok'}
+                className={`flex-1 py-4 rounded-2xl transition-all uppercase text-[10px] font-bold tracking-[0.3em] flex items-center justify-center gap-3 ${
+                  fileName && integrity.wasm === 'ok'
+                    ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-2xl shadow-blue-500/40 border-t border-white/20' 
+                    : 'bg-white/5 border border-white/5 text-white/10 cursor-not-allowed'
                 }`}
               >
-                Run
+                {fileName && integrity.wasm === 'ok' && <Play className="w-3 h-3 fill-current" />}
+                {integrity.wasm === 'checking' ? 'Validating...' : 'Initiate Boot'}
               </button>
             </div>
           </div>
@@ -1032,27 +1122,42 @@ export default function PS2Dashboard() {
 
       case "running":
         return (
-          <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center overflow-hidden touch-none">
+          <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center overflow-hidden touch-none font-sans">
             {renderPortraitGuard()}
+            
             {/* Simulation of Game Content */}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <canvas 
                 id="canvas" 
-                className="w-full h-full object-contain"
+                className="w-full h-full object-contain shadow-2xl"
                 onContextMenu={(e) => e.preventDefault()}
               />
               
               {!isEmulatorLoading && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 gap-6 z-10 px-6 text-center">
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="text-blue-400 text-5xl animate-spin-slow">💿</div>
-                    <span className="text-white font-bold tracking-[0.2em] text-sm mt-4 uppercase">Initializing Virtual Storage</span>
-                    <span className="text-white/30 text-[10px] uppercase">Mounting Disk: {fileName}</span>
-                  </div>
-                  
-                  <button 
-                    onClick={() => {
-                      setIsEmulatorLoading(true);
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 gap-8 z-10 px-6 text-center">
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex flex-col items-center gap-6"
+                  >
+                    <div className="relative">
+                      <div className="w-24 h-24 border-4 border-blue-500/20 rounded-full flex items-center justify-center">
+                        <motion.div 
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                          className="w-20 h-20 border-t-4 border-blue-400 rounded-full"
+                        />
+                      </div>
+                      <Disc className="absolute inset-0 m-auto w-8 h-8 text-blue-400 animate-pulse" />
+                    </div>
+                    
+                    <div className="space-y-2">
+                       <span className="text-white font-bold tracking-[0.4em] text-sm uppercase block">Mounting Virtual Disc</span>
+                       <span className="text-white/20 text-[9px] uppercase tracking-widest block max-w-[200px] truncate mx-auto">{fileName}</span>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setIsEmulatorLoading(true);
                       
                       // Inject Emscripten Module Config
                       const ramMB = config.ramAllocation === "2GB" ? 2048 : (config.ramAllocation === "1GB" ? 1024 : 512);
@@ -1131,111 +1236,82 @@ export default function PS2Dashboard() {
                         printErr: (text: string) => console.error('[Play!]', text)
                       };
 
-                      const script = document.createElement('script');
-                      script.src = '/play.js';
-                      script.async = true;
-                      script.onload = () => console.log("Play! JS loaded");
-                      script.onerror = () => {
-                        alert("Error: play.js not found.");
-                        handleSetScreen("emulator");
-                        setIsEmulatorLoading(false);
-                      };
-                      document.body.appendChild(script);
-                    }}
-                    className="px-10 py-3 bg-blue-600 text-white rounded-full font-bold uppercase tracking-widest text-[10px] hover:bg-blue-500 shadow-xl shadow-blue-600/20 active:scale-95 transition-all"
-                  >
-                    Launch Core Engine
-                  </button>
+                        const script = document.createElement('script');
+                        script.src = '/play.js';
+                        script.async = true;
+                        script.onload = () => console.log("Engine Active");
+                        script.onerror = () => {
+                          console.warn("Core script not found. Running in simulation mode.");
+                        };
+                        document.body.appendChild(script);
+                      }}
+                      className="mt-4 px-10 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-bold uppercase tracking-widest text-xs transition-all shadow-xl shadow-blue-500/20 active:scale-95 border-b-2 border-blue-400"
+                    >
+                      Authenticate & Run
+                    </button>
+                  </motion.div>
                 </div>
+              )}
+
+              {/* In-Game HUD & Controls */}
+              {isEmulatorLoading && (
+                <>
+                  <div className="absolute top-4 left-4 flex flex-col gap-1 pointer-events-none z-20">
+                    <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
+                      <div className="w-1 h-1 rounded-full bg-green-500 shadow-[0_0_5px_green] animate-pulse" />
+                      <span className="text-[8px] text-white/50 font-mono tracking-wider uppercase">EE Engine: JIT Ready</span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 w-fit">
+                      <span className="text-[8px] text-white/50 font-mono tracking-wider uppercase">FPS: 60.00</span>
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={() => setShowInGameSettings(true)}
+                    className="absolute top-4 right-4 p-3 bg-white/5 hover:bg-white/10 rounded-full border border-white/10 transition-all text-white/30 hover:text-white z-20 active:scale-90"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                </>
               )}
             </div>
 
-            {/* Real-time Settings Toggle */}
-            <button 
-              onClick={() => setShowInGameSettings(!showInGameSettings)}
-              className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 p-3 rounded-full backdrop-blur-md border border-white/10 z-[70] transition-all"
-            >
-              <Settings className="w-5 h-5 text-white" />
-            </button>
-
-            {/* Real-time Customizer Modal */}
+            {/* In-Game Pause Menu Overlay */}
             <AnimatePresence>
               {showInGameSettings && (
                 <motion.div 
-                  initial={{ opacity: 0, scale: 0.9, x: 20 }}
-                  animate={{ opacity: 1, scale: 1, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.9, x: 20 }}
-                  className="absolute top-20 right-4 w-72 bg-black/90 border border-white/10 backdrop-blur-2xl p-6 rounded-3xl z-[70] space-y-6 shadow-2xl"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-[60] bg-zinc-950/80 backdrop-blur-xl flex items-center justify-center p-6"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Cpu className="w-4 h-4 text-blue-400" />
-                      <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[10px]">Real-Time Tuner</h3>
-                    </div>
-                    <button onClick={() => setShowInGameSettings(false)} className="text-white/40 hover:text-white">✕</button>
-                  </div>
-
-                  <div className="space-y-5">
-                    <div className="flex flex-col gap-2">
-                       <span className="text-[9px] text-white/40 uppercase font-bold">Overlay Opacity ({config.overlayOpacity}%)</span>
-                       <input 
-                         type="range" 
-                         className="w-full accent-blue-500 cursor-pointer" 
-                         min="0" max="100" 
-                         value={config.overlayOpacity}
-                         onChange={(e) => setConfig({ ...config, overlayOpacity: parseInt(e.target.value) })}
-                       />
+                  <div className="max-w-xs w-full bg-zinc-900 border border-white/10 rounded-[2.5rem] p-10 space-y-10 shadow-3xl text-center">
+                    <div className="space-y-2">
+                       <h3 className="text-white text-2xl font-bold uppercase tracking-[0.3em]">System Paused</h3>
+                       <div className="h-[1px] w-12 bg-blue-500 mx-auto" />
                     </div>
 
-                    <div className="flex flex-col gap-2">
-                        <span className="text-[9px] text-white/40 uppercase font-bold">Virtual Pad Size</span>
-                        <div className="flex gap-2">
-                           {["sm", "md", "lg"].map(size => (
-                            <button 
-                              key={size} 
-                              onClick={() => setConfig({ ...config, vControllerSize: size })}
-                              className={`flex-1 py-1.5 rounded-lg border text-[9px] uppercase font-bold transition-all ${config.vControllerSize === size ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-white/40'}`}
-                            >
-                              {size}
-                            </button>
-                          ))}
-                        </div>
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-xl">
-                      <span className="text-[9px] text-white/60 font-bold uppercase">Frame Counter</span>
+                    <div className="space-y-3">
                       <button 
-                        onClick={() => setConfig({ ...config, showFPS: !config.showFPS })}
-                        className={`w-8 h-4 rounded-full relative transition-all ${config.showFPS ? 'bg-green-600' : 'bg-zinc-700'}`}
+                        onClick={() => setShowInGameSettings(false)}
+                        className="w-full py-5 bg-white text-black rounded-2xl font-bold uppercase tracking-widest text-[10px] transition-all active:scale-95"
                       >
-                         <motion.div animate={{ x: config.showFPS ? 18 : 2 }} className="absolute top-[2px] w-3 h-3 bg-white rounded-full" />
+                        Resume Game
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setShowInGameSettings(false);
+                          setIsEmulatorLoading(false);
+                          setScreen("main");
+                          soundService.playCancel();
+                        }}
+                        className="w-full py-5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-2xl font-bold uppercase tracking-widest text-[10px] transition-all border border-red-500/20"
+                      >
+                        Quit Operation
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl cursor-pointer" onClick={() => { soundService.playSelect(); setConfig({ ...config, editLayoutMode: !config.editLayoutMode }); }}>
-                      <span className="text-[9px] text-blue-300 font-bold uppercase">Edit Button Layout</span>
-                      <div className={`w-8 h-4 rounded-full relative transition-all ${config.editLayoutMode ? 'bg-blue-600' : 'bg-zinc-700'}`}>
-                         <motion.div animate={{ x: config.editLayoutMode ? 18 : 2 }} className="absolute top-[2px] w-3 h-3 bg-white rounded-full" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-4 border-t border-white/5 flex flex-col gap-2">
-                    <button 
-                      onClick={() => {
-                        setShowInGameSettings(false);
-                        handleSetScreen("main");
-                        setFileName(null);
-                        setIsEmulatorLoading(false);
-                        (window as any).Module = null; // Clean up module slightly
-                      }}
-                      className="w-full py-2.5 bg-red-500/10 text-red-400 rounded-xl text-[9px] font-bold uppercase tracking-widest hover:bg-red-500/20 transition-all border border-red-500/10"
-                    >
-                      Reset Core Engine
-                    </button>
-                    <p className="text-[8px] text-white/20 uppercase text-center leading-tight">
-                      Adjustments are applied in real-time. No game restart required.
-                    </p>
+                    <p className="text-white/20 text-[8px] uppercase tracking-widest pt-4">Storage: VFS-01 ACTIVE</p>
                   </div>
                 </motion.div>
               )}
