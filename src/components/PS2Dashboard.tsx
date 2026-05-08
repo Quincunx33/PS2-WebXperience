@@ -10,30 +10,30 @@ type Screen = "main" | "storage" | "config" | "emulator" | "running" | "customiz
 type GameMetadata = Omit<StoredGame, 'data'>;
 
 const DEFAULT_V_POSITIONS = {
-  // Shoulder Left
-  L1: { x: 20, y: 20, scale: 1, opacity: 0.6 },
-  L2: { x: 100, y: 20, scale: 1, opacity: 0.6 },
-  L3: { x: 140, y: -140, scale: 1, opacity: 0.6 },
-  // Shoulder Right
-  R1: { x: -20, y: 20, scale: 1, opacity: 0.6 },
-  R2: { x: -100, y: 20, scale: 1, opacity: 0.6 },
-  R3: { x: -140, y: -140, scale: 1, opacity: 0.6 },
-  // D-Pad
-  UP: { x: 60, y: -200, scale: 1, opacity: 0.6 },
-  DOWN: { x: 60, y: -80, scale: 1, opacity: 0.6 },
-  LEFT: { x: 0, y: -140, scale: 1, opacity: 0.6 },
-  RIGHT: { x: 120, y: -140, scale: 1, opacity: 0.6 },
-  // Face Buttons
-  TRIANGLE: { x: -60, y: -200, scale: 1, opacity: 0.6 },
-  CROSS: { x: -60, y: -80, scale: 1, opacity: 0.6 },
-  SQUARE: { x: -120, y: -140, scale: 1, opacity: 0.6 },
-  CIRCLE: { x: 0, y: -140, scale: 1, opacity: 0.6 },
+  // Shoulder Left (Grouped Top Left)
+  L2: { x: 0, y: 0, scale: 1, opacity: 0.6 },
+  L1: { x: 0, y: 56, scale: 1, opacity: 0.6 },
+  // Shoulder Right (Grouped Top Right)
+  R2: { x: 0, y: 0, scale: 1, opacity: 0.6 },
+  R1: { x: 0, y: 56, scale: 1, opacity: 0.6 },
+  // D-Pad (Grouped Bottom Left, Cross shape)
+  UP: { x: 70, y: -140, scale: 1, opacity: 0.6 },
+  DOWN: { x: 70, y: 0, scale: 1, opacity: 0.6 },
+  LEFT: { x: 0, y: -70, scale: 1, opacity: 0.6 },
+  RIGHT: { x: 140, y: -70, scale: 1, opacity: 0.6 },
+  // Face Buttons (Grouped Bottom Right, Diamond shape)
+  TRIANGLE: { x: -70, y: -140, scale: 1, opacity: 0.6 },
+  CROSS: { x: -70, y: 0, scale: 1, opacity: 0.6 },
+  SQUARE: { x: -140, y: -70, scale: 1, opacity: 0.6 },
+  CIRCLE: { x: 0, y: -70, scale: 1, opacity: 0.6 },
   // Center
-  SELECT: { x: -60, y: -10, scale: 1, opacity: 0.6 },
-  START: { x: 60, y: -10, scale: 1, opacity: 0.6 },
+  SELECT: { x: -60, y: -20, scale: 1, opacity: 0.6 },
+  START: { x: 60, y: -20, scale: 1, opacity: 0.6 },
   // Analogs
-  ANALOG_L: { x: 200, y: -60, scale: 1, opacity: 0.4 },
-  ANALOG_R: { x: -200, y: -60, scale: 1, opacity: 0.4 },
+  ANALOG_L: { x: 200, y: -20, scale: 1, opacity: 0.4 },
+  ANALOG_R: { x: -200, y: -20, scale: 1, opacity: 0.4 },
+  L3: { x: 200, y: -100, scale: 0.8, opacity: 0.4 },
+  R3: { x: -200, y: -100, scale: 0.8, opacity: 0.4 },
 };
 
 export default function PS2Dashboard() {
@@ -50,12 +50,12 @@ export default function PS2Dashboard() {
   // System Configuration State
   const [config, setConfig] = useState(() => {
     const saved = localStorage.getItem("ps2_config");
-    if (saved) return JSON.parse(saved);
-    return {
-      resolution: "480p",
+    const baseConfig = {
+      resolution: "1080p",
       showFPS: true,
+      fpsTarget: 60,
       scanlines: false,
-      ramAllocation: "1GB",
+      ramAllocation: "2GB",
       virtualControls: true,
       overlayOpacity: 60,
       vControllerSize: "md",
@@ -68,6 +68,15 @@ export default function PS2Dashboard() {
         START: "Enter", SELECT: "Shift"
       }
     };
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return { ...baseConfig, ...parsed };
+      } catch (e) {
+        return baseConfig;
+      }
+    }
+    return baseConfig;
   });
 
   useEffect(() => {
@@ -173,11 +182,99 @@ export default function PS2Dashboard() {
     }
   ];
 
+  // FPS Counter Logic
+  const [fps, setFps] = useState(0);
+  useEffect(() => {
+    if (!config.showFPS) return;
+    
+    let frameCount = 0;
+    let lastTime = performance.now();
+    let lastUpdate = performance.now();
+    let rafId: number;
+
+    const frameInterval = 1000 / config.fpsTarget;
+
+    const update = (currentTime: number) => {
+      const elapsedSinceLastFrame = currentTime - lastTime;
+      
+      if (elapsedSinceLastFrame >= frameInterval) {
+        frameCount++;
+        lastTime = currentTime - (elapsedSinceLastFrame % frameInterval);
+        
+        if (currentTime - lastUpdate >= 1000) {
+          // Add a tiny bit of "realism" fluctuation if at target
+          const jitter = (Math.random() - 0.5) * 2;
+          setFps(Math.round(frameCount + jitter));
+          frameCount = 0;
+          lastUpdate = currentTime;
+        }
+      }
+      
+      rafId = requestAnimationFrame(update);
+    };
+
+    rafId = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(rafId);
+  }, [config.showFPS, config.fpsTarget]);
+
+  // Resolution Scaling Effect
+  useEffect(() => {
+    const root = document.documentElement;
+    if (config.resolution === "4K") {
+      root.style.setProperty('--app-scale', '1.1');
+      root.style.filter = 'contrast(1.1) saturate(1.1) brightness(1.05)';
+    } else if (config.resolution === "1440p") {
+      root.style.setProperty('--app-scale', '1.05');
+      root.style.filter = 'contrast(1.05) brightness(1.02)';
+    } else {
+      root.style.setProperty('--app-scale', '1');
+      root.style.filter = 'none';
+    }
+  }, [config.resolution]);
+
   const renderScreen = () => {
+    const renderPortraitGuard = () => (
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="fixed inset-0 z-[999] bg-zinc-950 flex flex-col items-center justify-center p-8 text-center sm:hidden portrait:flex hidden"
+      >
+        <div className="w-24 h-24 border-2 border-white/10 rounded-3xl flex items-center justify-center mb-8 bg-zinc-900 shadow-2xl">
+          <motion.div 
+            animate={{ rotate: 90 }} 
+            transition={{ duration: 2, repeat: Infinity, repeatDelay: 1, ease: "easeInOut" }}
+            className="w-14 h-7 border-2 border-blue-500 rounded-lg relative"
+          >
+            <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-1 h-2 bg-blue-500 rounded-r-sm" />
+          </motion.div>
+        </div>
+        <h3 className="text-white font-bold uppercase tracking-[0.3em] text-sm mb-3">Rotation Required</h3>
+        <p className="text-white/40 text-[10px] uppercase tracking-widest leading-relaxed max-w-[200px]">
+          Please rotate your device to landscape for the best gaming experience.
+        </p>
+      </motion.div>
+    );
+
     switch (screen) {
       case "customizer":
         return (
-          <div className="fixed inset-0 bg-black z-[100] flex flex-col items-center justify-center overflow-hidden">
+          <div className="fixed inset-0 bg-black z-[100] flex flex-col items-center justify-center overflow-hidden touch-none">
+            {renderPortraitGuard()}
+            {/* FPS Display */}
+            {config.showFPS && (
+              <div className="fixed top-4 right-4 z-[200] font-mono text-[10px] text-green-400 bg-black/40 px-2 py-1 flex items-center gap-2 rounded-full border border-green-500/20 backdrop-blur-md">
+                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                FPS: {fps} / {config.fpsTarget}
+              </div>
+            )}
+
+            {/* Background Grid */}
+            <div className="absolute inset-0 opacity-10 pointer-events-none">
+               <div className="grid grid-cols-12 grid-rows-12 h-full w-full">
+                  {Array.from({ length: 144 }).map((_, i) => <div key={i} className="border-[0.5px] border-white/20" />)}
+               </div>
+            </div>
+
             <PS2VirtualController 
               isEditing={true}
               positions={config.vPositions}
@@ -192,26 +289,26 @@ export default function PS2Dashboard() {
               }))}
             />
 
-            {/* Editing Tools */}
+            {/* Scale/Opacity Panel */}
             <AnimatePresence>
               {selectedKey && (
                 <motion.div 
-                  initial={{ x: -300, opacity: 0 }}
-                  animate={{ x: 24, opacity: 1 }}
-                  exit={{ x: -300, opacity: 0 }}
-                  className="fixed top-6 left-6 w-80 bg-zinc-900 border border-white/20 p-6 rounded-3xl z-[110] backdrop-blur-2xl shadow-2xl space-y-6"
+                  initial={{ scale: 0.9, opacity: 0, y: 100, x: '-50%' }}
+                  animate={{ scale: 1, opacity: 1, y: 0, x: '-50%' }}
+                  exit={{ scale: 0.9, opacity: 0, y: 100, x: '-50%' }}
+                  className="fixed bottom-4 left-1/2 w-[90%] sm:w-80 bg-zinc-900 border border-white/20 p-4 sm:p-5 rounded-3xl z-[150] backdrop-blur-3xl shadow-2xl max-h-[40vh] overflow-y-auto hidden-scrollbar"
                 >
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-blue-400 font-bold uppercase tracking-widest text-xs flex items-center gap-2">
-                       Editing: <span className="text-white">{selectedKey}</span>
+                  <div className="flex items-center justify-between mb-3 sm:mb-4 sticky top-0 bg-zinc-900 pt-1 pb-2 z-10 border-b border-white/10">
+                    <h3 className="text-blue-400 font-bold uppercase tracking-widest text-[9px] sm:text-[10px] flex items-center gap-2">
+                       Editing: <span className="text-white text-xs">{selectedKey}</span>
                     </h3>
-                    <button onClick={() => setSelectedKey(null)} className="text-white/40 hover:text-white">✕</button>
+                    <button onClick={() => setSelectedKey(null)} className="text-white/40 hover:text-white p-2">✕</button>
                   </div>
 
-                  <div className="space-y-6">
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center text-[10px] uppercase font-bold text-white/50">
-                        <span>Scale / Resize</span>
+                  <div className="flex flex-col gap-4 sm:gap-6">
+                    <div className="space-y-2 sm:space-y-3">
+                      <div className="flex justify-between items-center text-[8px] sm:text-[9px] uppercase font-bold text-white/50">
+                        <span>Size / Scale</span>
                         <span className="text-blue-400">{Math.round(config.vPositions[selectedKey as keyof typeof DEFAULT_V_POSITIONS].scale * 100)}%</span>
                       </div>
                       <input 
@@ -224,13 +321,13 @@ export default function PS2Dashboard() {
                             [selectedKey]: { ...prev.vPositions[selectedKey as keyof typeof DEFAULT_V_POSITIONS], scale: parseFloat(e.target.value) }
                           }
                         }))}
-                        className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
+                        className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
                       />
                     </div>
 
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center text-[10px] uppercase font-bold text-white/50">
-                        <span>Opacity</span>
+                    <div className="space-y-2 sm:space-y-3">
+                      <div className="flex justify-between items-center text-[8px] sm:text-[9px] uppercase font-bold text-white/50">
+                        <span>Visibility</span>
                         <span className="text-blue-400">{Math.round(config.vPositions[selectedKey as keyof typeof DEFAULT_V_POSITIONS].opacity * 100)}%</span>
                       </div>
                       <input 
@@ -243,78 +340,94 @@ export default function PS2Dashboard() {
                             [selectedKey]: { ...prev.vPositions[selectedKey as keyof typeof DEFAULT_V_POSITIONS], opacity: parseFloat(e.target.value) }
                           }
                         }))}
-                        className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
+                        className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
                       />
                     </div>
-                  </div>
 
-                  <div className="pt-4 border-t border-white/5 flex gap-2">
-                    <button 
-                      onClick={() => setConfig(prev => ({
-                        ...prev,
-                        vPositions: {
-                          ...prev.vPositions,
-                          [selectedKey]: DEFAULT_V_POSITIONS[selectedKey as keyof typeof DEFAULT_V_POSITIONS]
-                        }
-                      }))}
-                      className="flex-1 py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] uppercase font-bold text-white transition-all"
-                    >
-                      Reset Button
-                    </button>
+                    <div className="flex gap-3 pt-2">
+                      <button 
+                        onClick={() => setConfig(prev => ({
+                          ...prev,
+                          vPositions: {
+                            ...prev.vPositions,
+                            [selectedKey]: DEFAULT_V_POSITIONS[selectedKey as keyof typeof DEFAULT_V_POSITIONS]
+                          }
+                        }))}
+                        className="flex-1 py-2 sm:py-3 px-3 sm:px-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[8px] sm:text-[9px] uppercase font-bold text-white transition-all active:scale-95"
+                      >
+                        Reset
+                      </button>
+                      <button 
+                        onClick={() => setSelectedKey(null)}
+                        className="flex-1 py-2 sm:py-3 px-3 sm:px-4 bg-blue-600 border border-blue-500 rounded-xl text-[8px] sm:text-[9px] uppercase font-bold text-white transition-all active:scale-95 sm:hidden"
+                      >
+                        Done
+                      </button>
+                    </div>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            <div className="fixed top-6 right-6 flex gap-4 z-[110]">
-              <button 
-                onClick={() => {
-                   if (confirm("Reset ALL button positions and sizes to default?")) {
+            {/* Header Controls */}
+            <div className={`fixed top-0 left-0 right-0 p-4 sm:p-6 flex justify-between items-start z-[110] transition-all safe-top ${selectedKey ? 'opacity-20 sm:opacity-100 pointer-events-none sm:pointer-events-auto' : ''}`}>
+              <div className="flex flex-col gap-1">
+                 <h2 className="text-white font-bold tracking-[0.2em] uppercase text-[9px] sm:text-xs">Layout Lab</h2>
+                 <span className="text-white/30 text-[7px] sm:text-[8px] uppercase tracking-tighter hidden sm:block">Drag buttons to reposition • Tap to resize</span>
+              </div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => {
+                    if (confirm("Reset ALL button positions and sizes to default?")) {
                       setConfig(prev => ({ ...prev, vPositions: DEFAULT_V_POSITIONS }));
-                   }
-                }}
-                className="px-6 py-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-full text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-red-500/20"
-              >
-                Reset All
-              </button>
-              <button 
-                onClick={() => setScreen("main")}
-                className="px-8 py-3 bg-blue-600 border border-blue-500 text-white rounded-full text-[10px] uppercase font-bold tracking-widest shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all hover:bg-blue-500 active:scale-95"
-              >
-                Save & Exit
-              </button>
+                    }
+                  }}
+                  className="px-3 sm:px-6 py-2 sm:py-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-full text-[8px] sm:text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-red-500/20 active:scale-95"
+                >
+                  Reset
+                </button>
+                <button 
+                  onClick={() => setScreen("main")}
+                  className="px-5 sm:px-8 py-2 sm:py-3 bg-blue-600 border border-blue-500 text-white rounded-full text-[8px] sm:text-[10px] uppercase font-bold tracking-widest shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all hover:bg-blue-500 active:scale-95"
+                >
+                  Save
+                </button>
+              </div>
             </div>
 
-            {/* Instruction Overlay */}
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-white/20 uppercase tracking-[0.3em] font-bold pointer-events-none">
-              Layout Customizer Mode • Landscape Sync Active
-            </div>
+            {/* Bottom Safe Area Sync */}
+            {!selectedKey && (
+              <div className="fixed bottom-6 left-1/2 -translate-x-1/2 text-[9px] text-white/20 uppercase tracking-[0.3em] font-bold pointer-events-none text-center">
+                Landscape Mode Sync: <span className="text-blue-500/50">Active</span>
+              </div>
+            )}
           </div>
         );
 
       case "main":
         return (
-          <div className="flex flex-col items-center justify-center gap-16">
+          <div className="flex flex-col items-center justify-center gap-8 sm:gap-16 px-4">
             <PS2Clock />
             
-            <div className="flex flex-col gap-2 w-full max-w-[240px] sm:max-w-[400px]">
+            <div className="flex flex-col gap-2 w-full max-w-[280px] sm:max-w-[400px]">
               {menuItems.map((item, idx) => (
                 <motion.button
                   key={item.id}
                   onClick={() => setScreen(item.id as Screen)}
                   onMouseEnter={() => setSelectedIdx(idx)}
                   className={`
-                    flex items-center justify-between p-2.5 sm:p-4 rounded-xl transition-all duration-300
-                    ${selectedIdx === idx ? 'bg-white/20 border-l-4 border-blue-400' : 'bg-transparent border-l-4 border-transparent'}
+                    flex items-center justify-between p-3 sm:p-4 rounded-xl transition-all duration-300
+                    ${selectedIdx === idx ? 'bg-white/20 border-l-4 border-blue-400 shadow-lg shadow-blue-500/10' : 'bg-white/5 border-l-4 border-transparent'}
                   `}
                   whileHover={{ x: 10 }}
+                  whileTap={{ scale: 0.98 }}
                 >
                   <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
                     <span className="text-blue-300 flex-shrink-0">
                       {React.cloneElement(item.icon as React.ReactElement, { className: "w-5 h-5 sm:w-8 sm:h-8" })}
                     </span>
                     <div className="flex flex-col items-start overflow-hidden text-left">
-                      <span className="text-white font-bold tracking-widest uppercase text-[10px] sm:text-sm truncate w-full">
+                      <span className="text-white font-bold tracking-widest uppercase text-[11px] sm:text-sm truncate w-full">
                         {item.label}
                       </span>
                       <span className="text-gray-400 text-[8px] sm:text-[10px] uppercase tracking-tighter truncate w-full">
@@ -327,9 +440,10 @@ export default function PS2Dashboard() {
               ))}
             </div>
 
-            <div className="absolute bottom-10 left-10 text-white/40 text-xs flex items-center gap-2">
-              <Info className="w-4 h-4" />
-              <span>Use mouse or keyboard to navigate</span>
+            <div className="text-white/20 text-[9px] sm:text-xs flex items-center gap-2 uppercase tracking-widest mt-4">
+              <Info className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Use mouse or keyboard to navigate</span>
+              <span className="sm:hidden">Touch to navigate</span>
             </div>
           </div>
         );
@@ -409,7 +523,7 @@ export default function PS2Dashboard() {
 
       case "emulator":
         return (
-          <div className="max-w-3xl w-full bg-black/80 border border-blue-500/30 p-6 sm:p-12 rounded-3xl backdrop-blur-2xl flex flex-col items-center gap-8 sm:gap-10 shadow-[0_0_100px_rgba(59,130,246,0.15)] relative mx-auto">
+          <div className="max-w-[calc(100vw-2rem)] sm:max-w-3xl w-full bg-black/80 border border-blue-500/30 p-4 sm:p-12 rounded-3xl backdrop-blur-2xl flex flex-col items-center gap-6 sm:gap-10 shadow-[0_0_100px_rgba(59,130,246,0.15)] relative mx-auto my-4">
             
             {/* Limitation Modal/Overlay */}
             <AnimatePresence>
@@ -418,131 +532,110 @@ export default function PS2Dashboard() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  className="absolute inset-0 z-50 bg-black/95 rounded-3xl flex flex-col items-center justify-center p-6 text-center border-2 border-red-500/50"
+                  className="absolute inset-0 z-50 bg-black/95 rounded-3xl flex flex-col items-center justify-center p-6 text-center border-2 border-red-500/50 overflow-y-auto"
                 >
-                  <AlertTriangle className="w-12 h-12 sm:w-16 sm:h-16 text-yellow-500 mb-4 sm:mb-6" />
-                  <h3 className="text-lg sm:text-xl font-bold tracking-widest uppercase text-white mb-3 sm:mb-4">Hardware Limitation</h3>
-                  <p className="text-red-300 font-mono text-[10px] sm:text-sm leading-relaxed max-w-lg mb-4 sm:mb-6">
+                  <AlertTriangle className="w-10 h-10 sm:w-16 sm:h-16 text-yellow-500 mb-4" />
+                  <h3 className="text-sm sm:text-xl font-bold tracking-widest uppercase text-white mb-2 sm:mb-4">Hardware Limitation</h3>
+                  <p className="text-red-300 font-mono text-[9px] sm:text-sm leading-relaxed max-w-lg mb-4">
                     FATAL ERROR: Emotion Engine architecture cannot be natively executed within this WebAssembly context. 
                   </p>
-                  <p className="text-white/80 text-[11px] sm:text-sm max-w-md mb-6 sm:mb-8">
-                    This is a dashboard UI simulation. To run high-end PS2 games smoothly, you will need to host your own emulator core bytes or use a standalone native emulator like <strong>PCSX2</strong>. Ensure your browser supports WebGL2 and high-performance WASM.
+                  <p className="text-white/80 text-[10px] sm:text-sm max-w-md mb-6">
+                    This is a dashboard UI simulation. To run high-end PS2 games smoothly, you will need a standalone native emulator or high-performance environment.
                   </p>
                   <button 
                     onClick={() => setShowError(false)}
-                    className="px-6 py-2 sm:px-8 sm:py-3 bg-red-500/20 text-red-100 hover:bg-red-500/40 rounded-full font-bold uppercase tracking-widest text-[10px] sm:text-xs transition-colors"
+                    className="px-6 py-2 sm:px-8 sm:py-3 bg-red-500/20 text-red-100 hover:bg-red-500/40 rounded-full font-bold uppercase tracking-widest text-[9px] sm:text-xs transition-colors"
                   >
-                    I Understand
+                    Dismiss
                   </button>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            <div className="flex flex-col items-center gap-3 sm:gap-4">
+            <div className="flex flex-col items-center gap-2 sm:gap-4">
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
               >
-                <Disc className="w-16 h-16 sm:w-24 sm:h-24 text-blue-400 opacity-50" />
+                <Disc className="w-12 h-12 sm:w-24 sm:h-24 text-blue-400 opacity-50" />
               </motion.div>
-              <h2 className="text-white text-2xl sm:text-4xl font-bold tracking-[0.2em] sm:tracking-[0.3em] uppercase text-center">Emu-Core v1.0</h2>
-              <div className="h-[2px] w-32 sm:w-48 bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
+              <h2 className="text-white text-lg sm:text-4xl font-bold tracking-[0.1em] sm:tracking-[0.3em] uppercase text-center">Emu-Core v1.0</h2>
+              <div className="h-[1.5px] w-24 sm:w-48 bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 w-full">
-              <div className="bg-white/5 p-4 sm:p-6 rounded-2xl border border-white/10 space-y-3 sm:space-y-4">
-                <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[10px] sm:text-xs">System Status</h3>
-                <div className="font-mono text-[9px] sm:text-[10px] space-y-1 text-white/60">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6 w-full">
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-2 sm:space-y-4">
+                <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[8px] sm:text-xs">System Status</h3>
+                <div className="font-mono text-[8px] sm:text-[10px] space-y-1 text-white/60">
                   <div className="flex justify-between"><span>EE Core:</span> <span className="text-green-400">JIT Ready</span></div>
                   <div className="flex justify-between"><span>GS Logic:</span> <span className="text-green-400">Vulkan OK</span></div>
-                  <div className="flex justify-between"><span>SPU-2:</span> <span className="text-yellow-400">Stereo Logic</span></div>
-                  <div className="flex justify-between"><span>WASM:</span> <span className="text-blue-400">v2.3 Threads</span></div>
                 </div>
               </div>
 
-              <div className="bg-white/5 p-4 sm:p-6 rounded-2xl border border-white/10 space-y-3 sm:space-y-4">
-                <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[10px] sm:text-xs">Required Files</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-[10px] sm:text-xs text-white/50">
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-2 sm:space-y-4">
+                <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[8px] sm:text-xs">Required Files</h3>
+                <div className="space-y-1 sm:space-y-2">
+                  <div className="flex items-center gap-2 text-[9px] sm:text-xs text-white/50">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
                     <span>BIOS Module (Embedded)</span>
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] sm:text-xs text-white/70">
-                    <div className={`w-2 h-2 rounded-full ${fileName ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
+                  <div className="flex items-center gap-2 text-[9px] sm:text-xs text-white/70">
+                    <div className={`w-1.5 h-1.5 rounded-full ${fileName ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
                     <span>{fileName ? 'ROM Loaded' : 'Waiting for Game ISO...'}</span>
                   </div>
                 </div>
               </div>
             </div>
             
-            <label className={`w-full h-32 sm:h-48 border-2 border-dashed ${fileName ? 'border-green-500/40 bg-green-500/5' : 'border-blue-500/20'} rounded-2xl flex flex-col items-center justify-center gap-3 sm:gap-4 hover:bg-blue-500/10 cursor-pointer transition-all group overflow-hidden relative`}>
+            <label className={`w-full h-24 sm:h-48 border-2 border-dashed ${fileName ? 'border-green-500/40 bg-green-500/5' : 'border-blue-500/20'} rounded-2xl flex flex-col items-center justify-center gap-2 sm:gap-4 hover:bg-blue-500/10 cursor-pointer transition-all overflow-hidden`}>
               <input type="file" className="hidden" accept=".iso,.elf,.bin" onChange={handleFileChange} disabled={isInstalling} />
               
               {isInstalling ? (
-                <div className="flex flex-col items-center gap-3 w-full px-12">
-                  <motion.div 
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    className="text-3xl"
-                  >
-                    ⚙️
-                  </motion.div>
-                  <div className="w-full h-1.5 bg-blue-900/50 rounded-full overflow-hidden">
+                <div className="flex flex-col items-center gap-2 w-full px-8">
+                  <div className="w-full h-1 bg-blue-900/50 rounded-full overflow-hidden">
                     <motion.div 
                       className="h-full bg-blue-400"
                       initial={{ width: 0 }}
                       animate={{ width: `${installProgress}%` }}
                     />
                   </div>
-                  <span className="text-blue-300 font-bold uppercase tracking-widest text-[10px] sm:text-xs">
+                  <span className="text-blue-300 font-bold uppercase tracking-widest text-[8px] sm:text-xs text-center">
                     Installing: {installProgress}%
                   </span>
                 </div>
               ) : fileName ? (
-                <div className="text-center px-4">
-                  <span className="text-green-400 text-3xl sm:text-4xl mb-1 sm:mb-2 block">✓</span>
-                  <span className="text-green-300 font-bold uppercase tracking-widest block text-[10px] sm:text-sm mb-1">File Loaded</span>
-                  <span className="text-white/60 text-[9px] sm:text-xs font-mono truncate max-w-[200px] block mx-auto">{fileName}</span>
+                <div className="text-center px-2">
+                  <span className="text-green-400 text-2xl sm:text-4xl mb-1 block">✓</span>
+                  <span className="text-green-300 font-bold uppercase tracking-widest block text-[9px] sm:text-sm">File Loaded</span>
                 </div>
               ) : (
                 <>
-                  <motion.div 
-                    animate={{ y: [0, -10, 0] }} 
-                    transition={{ duration: 2, repeat: Infinity }}
-                    className="text-3xl sm:text-4xl group-hover:scale-125 transition-transform"
-                  >
-                    📥
-                  </motion.div>
+                  <div className="text-2xl sm:text-4xl">📥</div>
                   <div className="text-center px-4">
-                    <span className="text-white font-bold uppercase tracking-widest block text-[10px] sm:text-sm">LOAD GAME FILE</span>
-                    <span className="text-white/40 text-[9px] uppercase tracking-tighter mt-1 block">Drag & Drop .ISO / .ELF file here</span>
+                    <span className="text-white font-bold uppercase tracking-widest block text-[9px] sm:text-sm">LOAD GAME FILE</span>
+                    <span className="text-white/40 text-[8px] uppercase tracking-tighter mt-1 block">ISO / ELF file</span>
                   </div>
                 </>
               )}
-              <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity" />
             </label>
 
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <button 
-                onClick={() => {
-                  setScreen("main");
-                  setShowError(false);
-                  setFileName(null);
-                }}
-                className="w-full sm:w-auto px-10 py-3 border border-white/20 text-white/70 hover:bg-white/10 rounded-full transition-all uppercase text-[9px] sm:text-[10px] font-bold tracking-[0.2em]"
+                onClick={() => setScreen("main")}
+                className="px-6 py-2.5 sm:px-10 sm:py-3 border border-white/20 text-white/70 hover:bg-white/10 rounded-full transition-all uppercase text-[9px] sm:text-[10px] font-bold tracking-[0.2em]"
               >
-                Back to Menu
+                Back
               </button>
               <button 
                 onClick={handleRunGame}
                 disabled={!fileName}
-                className={`w-full sm:w-auto px-10 py-3 rounded-full transition-all uppercase text-[9px] sm:text-[10px] font-bold tracking-[0.2em] ${
+                className={`px-6 py-2.5 sm:px-10 sm:py-3 rounded-full transition-all uppercase text-[9px] sm:text-[10px] font-bold tracking-[0.2em] ${
                   fileName 
-                    ? 'bg-blue-600 text-white hover:bg-blue-500 hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] cursor-pointer' 
-                    : 'bg-blue-600/20 border border-blue-500/40 text-blue-300 opacity-50 cursor-not-allowed'
+                    ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-500/20' 
+                    : 'bg-white/5 border border-white/10 text-white/20 cursor-not-allowed'
                 }`}
               >
-                Run Emulator
+                Run
               </button>
             </div>
           </div>
@@ -559,24 +652,35 @@ export default function PS2Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 w-full">
               {/* Graphics Settings */}
               <div className="bg-white/5 border border-white/10 rounded-2xl p-5 sm:p-6 space-y-4">
-                <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[10px] sm:text-xs">Graphics Engine</h3>
+                <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[10px] sm:text-xs">Video Engine</h3>
                 <div className="space-y-4">
                   <div className="flex flex-col gap-2">
                     <span className="text-[10px] text-white/40 uppercase">Internal Resolution</span>
-                    <div className="flex gap-2">
-                       {["360p", "480p", "720p"].map(res => (
-                        <button 
-                          key={res} 
-                          onClick={() => setConfig({ ...config, resolution: res })}
-                          className={`flex-1 py-2 rounded-lg border text-[10px] uppercase font-bold transition-all ${config.resolution === res ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-white/40'}`}
-                        >
-                          {res}
-                        </button>
-                      ))}
-                    </div>
+                    <select 
+                      value={config.resolution}
+                      onChange={(e) => setConfig({ ...config, resolution: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-white"
+                    >
+                      <option value="480p">480p (Native)</option>
+                      <option value="720p">720p (HD)</option>
+                      <option value="1080p">1080p (FHD)</option>
+                      <option value="1440p">2K (QHD)</option>
+                      <option value="4K">4K (UHD)</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] text-white/40 uppercase">Frame Rate Target</span>
+                    <select 
+                      value={config.fpsTarget}
+                      onChange={(e) => setConfig({ ...config, fpsTarget: parseInt(e.target.value) })}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-white"
+                    >
+                      <option value={30}>30 FPS (Stability)</option>
+                      <option value={60}>60 FPS (Performance)</option>
+                    </select>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-white/40 uppercase">Show FPS Counter</span>
+                    <span className="text-[10px] text-white/40 uppercase">OSD Monitor</span>
                     <div 
                       onClick={() => setConfig({ ...config, showFPS: !config.showFPS })}
                       className={`w-10 h-5 border transition-colors rounded-full relative cursor-pointer ${config.showFPS ? 'bg-blue-500/20 border-blue-500/50' : 'bg-white/5 border-white/10'}`}
@@ -584,18 +688,6 @@ export default function PS2Dashboard() {
                       <motion.div 
                         animate={{ x: config.showFPS ? 20 : 4 }}
                         className={`absolute top-1 w-3 h-3 rounded-full ${config.showFPS ? 'bg-blue-400' : 'bg-white/20'}`} 
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-white/40 uppercase">Retro Scanlines</span>
-                    <div 
-                       onClick={() => setConfig({ ...config, scanlines: !config.scanlines })}
-                       className={`w-10 h-5 border transition-colors rounded-full relative cursor-pointer ${config.scanlines ? 'bg-blue-500/20 border-blue-500/50' : 'bg-white/5 border-white/10'}`}
-                    >
-                      <motion.div 
-                        animate={{ x: config.scanlines ? 20 : 4 }}
-                        className={`absolute top-1 w-3 h-3 rounded-full ${config.scanlines ? 'bg-blue-400' : 'bg-white/20'}`} 
                       />
                     </div>
                   </div>
@@ -738,7 +830,8 @@ export default function PS2Dashboard() {
 
       case "running":
         return (
-          <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center overflow-hidden">
+          <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center overflow-hidden touch-none overflow-y-hidden">
+            {renderPortraitGuard()}
             {/* Simulation of Game Content */}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <canvas 
@@ -778,8 +871,9 @@ export default function PS2Dashboard() {
             </div>
 
             {/* In-Game HUD */}
-            <div className={`absolute top-4 left-4 font-mono text-green-500 text-[10px] bg-black/50 p-2 rounded backdrop-blur border border-white/5 transition-opacity ${config.showFPS ? 'opacity-100' : 'opacity-0'}`}>
-                FPS: 59.9 [V-SYNC]
+            <div className={`absolute top-4 right-4 font-mono text-green-500 text-[10px] bg-black/50 px-2 py-1 flex items-center gap-2 rounded-full backdrop-blur border border-white/10 transition-opacity ${config.showFPS ? 'opacity-100' : 'opacity-0'}`}>
+                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                FPS: 59.9
             </div>
 
             {/* Real-time Settings Toggle */}

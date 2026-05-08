@@ -8,7 +8,26 @@
 
 @layer base {
   body {
-    @apply bg-black text-white antialiased overflow-hidden;
+    @apply bg-black text-white antialiased overflow-x-hidden;
+    touch-action: none;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    zoom: var(--app-scale, 1);
+  }
+}
+
+@layer utilities {
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-left {
+    padding-left: env(safe-area-inset-left);
+  }
+  .safe-right {
+    padding-right: env(safe-area-inset-right);
   }
 }
 
@@ -19,4 +38,18 @@
 
 .bg-radial-gradient {
   background-image: radial-gradient(var(--tw-gradient-stops));
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
 }

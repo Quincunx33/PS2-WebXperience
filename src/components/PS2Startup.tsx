@@ -23,9 +23,9 @@ export default function PS2Startup({ onComplete }: { onComplete: () => void }) {
   // Generate 20+ towers with random height
   const towers = Array.from({ length: 32 }).map((_, i) => ({
     id: i,
-    height: Math.random() * 200 + 50,
-    x: (Math.random() - 0.5) * 800,
-    z: (Math.random() - 0.5) * 1000 - 500,
+    height: Math.random() * 150 + 50,
+    x: (Math.random() - 0.5) * (typeof window !== 'undefined' && window.innerWidth < 768 ? 300 : 800),
+    z: (Math.random() - 0.5) * 800 - 400,
     delay: Math.random() * 2,
   }));
 

@@ -24,7 +24,15 @@ export default function PS2VirtualController({
   selectedKey = null,
   onSelect
 }: ControllerProps) {
-  
+  const [windowWidth, setWindowWidth] = React.useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  const isMobile = windowWidth < 768;
+
+  React.useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const renderIcon = (key: string) => {
     switch(key) {
       case 'UP': return <ChevronUp className="w-full h-full" />;
@@ -50,37 +58,33 @@ export default function PS2VirtualController({
   };
 
   const getButtonClass = (key: string) => {
-    const base = "flex items-center justify-center backdrop-blur-md transition-all active:scale-95 shadow-xl border border-white/20 text-white/70";
-    if (key.includes('ANALOG')) return `${base} w-24 h-24 rounded-full bg-white/5`;
-    if (key === 'SELECT' || key === 'START') return `${base} px-4 py-2 rounded-full bg-white/10`;
-    if (key.includes('L') || key.includes('R')) return `${base} w-16 h-10 rounded-lg bg-white/10`;
-    if (['UP', 'DOWN', 'LEFT', 'RIGHT'].includes(key)) return `${base} w-14 h-14 rounded-xl bg-white/10`;
-    return `${base} w-14 h-14 rounded-full bg-white/10`; // Face buttons
+    const mobileScale = isMobile ? 'scale-[0.8]' : '';
+    const base = `flex items-center justify-center backdrop-blur-md transition-all active:scale-95 shadow-xl border border-white/20 text-white/70 ${mobileScale}`;
+    if (key.includes('ANALOG')) return `${base} w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white/5`;
+    if (key === 'SELECT' || key === 'START') return `${base} px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-white/10`;
+    if (key.includes('L') || key.includes('R')) return `${base} w-14 h-8 sm:w-16 sm:h-10 rounded-lg bg-white/10`;
+    if (['UP', 'DOWN', 'LEFT', 'RIGHT'].includes(key)) return `${base} w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-white/10`;
+    return `${base} w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/10`; 
   };
 
-  const getPositionStyle = (key: string, config: ButtonConfig) => {
+    const getBaseStyle = (key: string) => {
+    const margin = isMobile ? 10 : 20;
     const style: React.CSSProperties = {
       position: 'fixed' as const,
-      left: 0,
-      top: 0,
-      x: config.x,
-      y: config.y,
-      scale: config.scale,
-      opacity: config.opacity,
-    } as any;
+    };
 
-    // Anchor logic based on button type
-    if (key.startsWith('L') && !key.includes('3')) {
-      style.left = 20; style.top = 20;
-    } else if (key.startsWith('R') && !key.includes('3')) {
-      style.left = 'auto'; style.right = 20; style.top = 20;
-    } else if (['UP', 'DOWN', 'LEFT', 'RIGHT', 'ANALOG_L', 'L3'].includes(key)) {
-      style.left = 40; style.top = 'auto'; style.bottom = 40;
-    } else if (['TRIANGLE', 'CIRCLE', 'CROSS', 'SQUARE', 'ANALOG_R', 'R3'].includes(key)) {
-      style.left = 'auto'; style.right = 40; style.top = 'auto'; style.bottom = 40;
+    if (key.startsWith('R') || ['TRIANGLE', 'CIRCLE', 'CROSS', 'SQUARE', 'ANALOG_R', 'R3'].includes(key)) {
+      style.left = 'auto'; style.right = margin;
+    } else if (['SELECT', 'START'].includes(key)) {
+      style.left = '50%';
     } else {
-      // Center buttons (SELECT, START)
-      style.left = '50%'; style.top = 'auto'; style.bottom = 40;
+      style.left = margin;
+    }
+
+    if ((key.startsWith('L') || key.startsWith('R')) && !key.includes('3')) {
+      style.top = margin; style.bottom = 'auto';
+    } else {
+      style.top = 'auto'; style.bottom = margin;
     }
 
     return style;
@@ -96,44 +100,64 @@ export default function PS2VirtualController({
         </div>
       )}
 
-      {Object.entries(positions).map(([key, config]) => (
-        <motion.div
-          key={key}
-          drag={isEditing}
-          dragMomentum={false}
-          onDragEnd={(_, info) => {
-            onPositionChange(key, { x: config.x + info.offset.x, y: config.y + info.offset.y });
-          }}
-          onTap={() => isEditing && onSelect?.(key)}
-          initial={false}
-          style={{ 
-            ...getPositionStyle(key, config),
-            zIndex: selectedKey === key ? 100 : 80,
-            cursor: isEditing ? 'move' : 'pointer'
-          }}
-          className="pointer-events-auto group"
-        >
-          <div className={`
-            relative ${getButtonClass(key)}
-            ${selectedKey === key ? 'ring-4 ring-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.5)]' : ''}
-            ${isEditing ? 'hover:ring-2 hover:ring-white/50' : ''}
-          `}>
-            {renderIcon(key)}
-            {isEditing && selectedKey === key && (
-              <div className="absolute -top-8 -right-8 bg-blue-500 rounded-full p-1 shadow-lg">
-                <Settings2 className="w-4 h-4 text-white" />
-              </div>
-            )}
-          </div>
-        </motion.div>
-      ))}
+      {Object.entries(positions).map(([key, config]) => {
+        const isCenter = ['SELECT', 'START'].includes(key);
+        const mobileScaleFactor = isMobile ? 0.75 : 1;
+        
+        return (
+          <motion.div
+            key={key}
+            drag={isEditing}
+            dragMomentum={false}
+            onDragEnd={(_, info) => {
+              onPositionChange(key, { 
+                x: config.x + (info.offset.x / mobileScaleFactor), 
+                y: config.y + (info.offset.y / mobileScaleFactor) 
+              });
+            }}
+            onTap={() => isEditing && onSelect?.(key)}
+            initial={{
+              x: config.x * mobileScaleFactor,
+              y: config.y * mobileScaleFactor,
+              scale: config.scale * mobileScaleFactor,
+              opacity: config.opacity,
+            }}
+            animate={{
+              x: config.x * mobileScaleFactor,
+              y: config.y * mobileScaleFactor,
+              scale: config.scale * mobileScaleFactor,
+              opacity: config.opacity,
+            }}
+            style={{ 
+              ...getBaseStyle(key),
+              zIndex: selectedKey === key ? 100 : 80,
+              cursor: isEditing ? 'move' : 'pointer',
+              touchAction: 'none'
+            }}
+            className={`pointer-events-auto group ${isCenter ? 'ml-[-30px]' : ''}`}
+          >
+            <div className={`
+              relative ${getButtonClass(key)}
+              ${selectedKey === key ? 'ring-4 ring-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.5)]' : ''}
+              ${isEditing ? 'hover:ring-2 hover:ring-white/50' : ''}
+            `}>
+              {renderIcon(key)}
+              {isEditing && selectedKey === key && (
+                <div className="absolute -top-8 -right-8 bg-blue-500 rounded-full p-1 shadow-lg">
+                  <Settings2 className="w-4 h-4 text-white" />
+                </div>
+              )}
+            </div>
+          </motion.div>
+        );
+      })}
 
       {isEditing && !selectedKey && (
         <div className="absolute bottom-10 left-10 z-[100] bg-white/10 backdrop-blur-xl border border-white/20 p-6 rounded-3xl max-w-sm pointer-events-auto">
           <h2 className="text-white font-bold tracking-widest uppercase text-xs mb-2">Control Customizer</h2>
           <p className="text-white/40 text-[10px] leading-relaxed uppercase">
             Click any button to adjust its properties. Drag buttons to move them.
-            Buttons are now fully independent.
+            Positions are relative to screen corners for better landscape support.
           </p>
         </div>
       )}

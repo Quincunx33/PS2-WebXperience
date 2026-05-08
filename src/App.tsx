@@ -54,7 +54,9 @@ export default function App() {
         )}
 
         {state === "dashboard" && (
-          <PS2Dashboard />
+          <div className="min-h-screen flex items-center justify-center p-4">
+            <PS2Dashboard />
+          </div>
         )}
       </AnimatePresence>
 
