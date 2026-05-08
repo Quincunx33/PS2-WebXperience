@@ -5,9 +5,36 @@ import PS2Clock from "./PS2Clock";
 import { StorageService, StoredGame } from "../services/storageService";
 import PS2VirtualController from "./PS2VirtualController";
 
-type Screen = "main" | "storage" | "config" | "emulator" | "running";
+type Screen = "main" | "storage" | "config" | "emulator" | "running" | "customizer";
 
 type GameMetadata = Omit<StoredGame, 'data'>;
+
+const DEFAULT_V_POSITIONS = {
+  // Shoulder Left
+  L1: { x: 20, y: 20, scale: 1, opacity: 0.6 },
+  L2: { x: 100, y: 20, scale: 1, opacity: 0.6 },
+  L3: { x: 140, y: -140, scale: 1, opacity: 0.6 },
+  // Shoulder Right
+  R1: { x: -20, y: 20, scale: 1, opacity: 0.6 },
+  R2: { x: -100, y: 20, scale: 1, opacity: 0.6 },
+  R3: { x: -140, y: -140, scale: 1, opacity: 0.6 },
+  // D-Pad
+  UP: { x: 60, y: -200, scale: 1, opacity: 0.6 },
+  DOWN: { x: 60, y: -80, scale: 1, opacity: 0.6 },
+  LEFT: { x: 0, y: -140, scale: 1, opacity: 0.6 },
+  RIGHT: { x: 120, y: -140, scale: 1, opacity: 0.6 },
+  // Face Buttons
+  TRIANGLE: { x: -60, y: -200, scale: 1, opacity: 0.6 },
+  CROSS: { x: -60, y: -80, scale: 1, opacity: 0.6 },
+  SQUARE: { x: -120, y: -140, scale: 1, opacity: 0.6 },
+  CIRCLE: { x: 0, y: -140, scale: 1, opacity: 0.6 },
+  // Center
+  SELECT: { x: -60, y: -10, scale: 1, opacity: 0.6 },
+  START: { x: 60, y: -10, scale: 1, opacity: 0.6 },
+  // Analogs
+  ANALOG_L: { x: 200, y: -60, scale: 1, opacity: 0.4 },
+  ANALOG_R: { x: -200, y: -60, scale: 1, opacity: 0.4 },
+};
 
 export default function PS2Dashboard() {
   const [screen, setScreen] = useState<Screen>("main");
@@ -21,40 +48,34 @@ export default function PS2Dashboard() {
   const [showInGameSettings, setShowInGameSettings] = useState(false);
 
   // System Configuration State
-  const [config, setConfig] = useState({
-    resolution: "480p",
-    showFPS: true,
-    scanlines: false,
-    ramAllocation: "1GB",
-    virtualControls: true,
-    overlayOpacity: 40,
-    vControllerSize: "md",
-    editLayoutMode: false,
-    vPositions: {
-      dpad: { x: 0, y: 0 },
-      actions: { x: 0, y: 0 },
-      center: { x: 0, y: 0 },
-      shoulders: { x: 0, y: 0 }
-    },
-    keyMapping: {
-      CROSS: "k",
-      CIRCLE: "l",
-      SQUARE: "j",
-      TRIANGLE: "i",
-      L1: "q",
-      R1: "e",
-      L2: "1",
-      R2: "3",
-      UP: "w",
-      DOWN: "s",
-      LEFT: "a",
-      RIGHT: "d",
-      START: "Enter",
-      SELECT: "Shift"
-    }
+  const [config, setConfig] = useState(() => {
+    const saved = localStorage.getItem("ps2_config");
+    if (saved) return JSON.parse(saved);
+    return {
+      resolution: "480p",
+      showFPS: true,
+      scanlines: false,
+      ramAllocation: "1GB",
+      virtualControls: true,
+      overlayOpacity: 60,
+      vControllerSize: "md",
+      editLayoutMode: false,
+      vPositions: DEFAULT_V_POSITIONS,
+      keyMapping: {
+        CROSS: "k", CIRCLE: "l", SQUARE: "j", TRIANGLE: "i",
+        L1: "q", R1: "e", L2: "1", R2: "3",
+        UP: "w", DOWN: "s", LEFT: "a", RIGHT: "d",
+        START: "Enter", SELECT: "Shift"
+      }
+    };
   });
 
+  useEffect(() => {
+    localStorage.setItem("ps2_config", JSON.stringify(config));
+  }, [config]);
+
   const [activeMappingKey, setActiveMappingKey] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   // Load games from real IndexedDB
   const refreshStorage = async () => {
@@ -68,6 +89,15 @@ export default function PS2Dashboard() {
 
   useEffect(() => {
     refreshStorage();
+  }, [screen]);
+
+  useEffect(() => {
+    // Prevent scrolling and handle landscape simulation
+    if (screen === "customizer" || screen === "running") {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "auto";
+    }
   }, [screen]);
 
   useEffect(() => {
@@ -145,6 +175,123 @@ export default function PS2Dashboard() {
 
   const renderScreen = () => {
     switch (screen) {
+      case "customizer":
+        return (
+          <div className="fixed inset-0 bg-black z-[100] flex flex-col items-center justify-center overflow-hidden">
+            <PS2VirtualController 
+              isEditing={true}
+              positions={config.vPositions}
+              selectedKey={selectedKey}
+              onSelect={setSelectedKey}
+              onPositionChange={(key, pos) => setConfig(prev => ({
+                ...prev,
+                vPositions: { 
+                  ...prev.vPositions, 
+                  [key]: { ...prev.vPositions[key as any], ...pos } 
+                }
+              }))}
+            />
+
+            {/* Editing Tools */}
+            <AnimatePresence>
+              {selectedKey && (
+                <motion.div 
+                  initial={{ x: -300, opacity: 0 }}
+                  animate={{ x: 24, opacity: 1 }}
+                  exit={{ x: -300, opacity: 0 }}
+                  className="fixed top-6 left-6 w-80 bg-zinc-900 border border-white/20 p-6 rounded-3xl z-[110] backdrop-blur-2xl shadow-2xl space-y-6"
+                >
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-blue-400 font-bold uppercase tracking-widest text-xs flex items-center gap-2">
+                       Editing: <span className="text-white">{selectedKey}</span>
+                    </h3>
+                    <button onClick={() => setSelectedKey(null)} className="text-white/40 hover:text-white">✕</button>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center text-[10px] uppercase font-bold text-white/50">
+                        <span>Scale / Resize</span>
+                        <span className="text-blue-400">{Math.round(config.vPositions[selectedKey as keyof typeof DEFAULT_V_POSITIONS].scale * 100)}%</span>
+                      </div>
+                      <input 
+                        type="range" min="0.4" max="2.5" step="0.1"
+                        value={config.vPositions[selectedKey as keyof typeof DEFAULT_V_POSITIONS].scale}
+                        onChange={(e) => setConfig(prev => ({
+                          ...prev,
+                          vPositions: {
+                            ...prev.vPositions,
+                            [selectedKey]: { ...prev.vPositions[selectedKey as keyof typeof DEFAULT_V_POSITIONS], scale: parseFloat(e.target.value) }
+                          }
+                        }))}
+                        className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center text-[10px] uppercase font-bold text-white/50">
+                        <span>Opacity</span>
+                        <span className="text-blue-400">{Math.round(config.vPositions[selectedKey as keyof typeof DEFAULT_V_POSITIONS].opacity * 100)}%</span>
+                      </div>
+                      <input 
+                        type="range" min="0.05" max="1" step="0.05"
+                        value={config.vPositions[selectedKey as keyof typeof DEFAULT_V_POSITIONS].opacity}
+                        onChange={(e) => setConfig(prev => ({
+                          ...prev,
+                          vPositions: {
+                            ...prev.vPositions,
+                            [selectedKey]: { ...prev.vPositions[selectedKey as keyof typeof DEFAULT_V_POSITIONS], opacity: parseFloat(e.target.value) }
+                          }
+                        }))}
+                        className="w-full h-1 bg-white/10 rounded-full appearance-none cursor-pointer accent-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-white/5 flex gap-2">
+                    <button 
+                      onClick={() => setConfig(prev => ({
+                        ...prev,
+                        vPositions: {
+                          ...prev.vPositions,
+                          [selectedKey]: DEFAULT_V_POSITIONS[selectedKey as keyof typeof DEFAULT_V_POSITIONS]
+                        }
+                      }))}
+                      className="flex-1 py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] uppercase font-bold text-white transition-all"
+                    >
+                      Reset Button
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className="fixed top-6 right-6 flex gap-4 z-[110]">
+              <button 
+                onClick={() => {
+                   if (confirm("Reset ALL button positions and sizes to default?")) {
+                      setConfig(prev => ({ ...prev, vPositions: DEFAULT_V_POSITIONS }));
+                   }
+                }}
+                className="px-6 py-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-full text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-red-500/20"
+              >
+                Reset All
+              </button>
+              <button 
+                onClick={() => setScreen("main")}
+                className="px-8 py-3 bg-blue-600 border border-blue-500 text-white rounded-full text-[10px] uppercase font-bold tracking-widest shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all hover:bg-blue-500 active:scale-95"
+              >
+                Save & Exit
+              </button>
+            </div>
+
+            {/* Instruction Overlay */}
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-white/20 uppercase tracking-[0.3em] font-bold pointer-events-none">
+              Layout Customizer Mode • Landscape Sync Active
+            </div>
+          </div>
+        );
+
       case "main":
         return (
           <div className="flex flex-col items-center justify-center gap-16">
@@ -498,11 +645,11 @@ export default function PS2Dashboard() {
                   </div>
                   
                   <button 
-                    onClick={() => setConfig({ ...config, editLayoutMode: !config.editLayoutMode })}
-                    className={`w-full py-3 rounded-xl border flex items-center justify-center gap-2 transition-all font-bold text-[10px] uppercase tracking-widest ${config.editLayoutMode ? 'bg-blue-500 border-blue-400 text-white shadow-lg' : 'bg-white/5 border-white/10 text-blue-400 hover:bg-white/10'}`}
+                    onClick={() => setScreen("customizer")}
+                    className="w-full py-3 rounded-xl border flex items-center justify-center gap-2 transition-all font-bold text-[10px] uppercase tracking-widest bg-white/5 border-white/10 text-blue-400 hover:bg-white/10 active:scale-95"
                   >
                     <GripVertical className="w-4 h-4" />
-                    {config.editLayoutMode ? "Finish Layout Check" : "Drag & Drop Layout Editor"}
+                    Open Advanced Layout Editor
                   </button>
 
                   <div className="flex flex-col gap-2">
@@ -575,12 +722,14 @@ export default function PS2Dashboard() {
             {/* Layout Editor Preview */}
             {config.editLayoutMode && (
               <PS2VirtualController 
-                size={config.vControllerSize} 
                 isEditing={true}
                 positions={config.vPositions}
                 onPositionChange={(key, pos) => setConfig(prev => ({
                   ...prev,
-                  vPositions: { ...prev.vPositions, [key]: pos }
+                  vPositions: { 
+                    ...prev.vPositions, 
+                    [key]: { ...prev.vPositions[key as any], ...pos } 
+                  }
                 }))}
               />
             )}
@@ -727,12 +876,14 @@ export default function PS2Dashboard() {
             {config.virtualControls && (
               <div style={{ opacity: config.overlayOpacity / 100 }}>
                 <PS2VirtualController 
-                  size={config.vControllerSize} 
                   isEditing={config.editLayoutMode}
                   positions={config.vPositions}
                   onPositionChange={(key, pos) => setConfig(prev => ({
                     ...prev,
-                    vPositions: { ...prev.vPositions, [key]: pos }
+                    vPositions: { 
+                      ...prev.vPositions, 
+                      [key]: { ...prev.vPositions[key as any], ...pos } 
+                    }
                   }))}
                 />
               </div>
