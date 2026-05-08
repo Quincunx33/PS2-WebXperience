@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { Circle, Triangle, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Settings2 } from "lucide-react";
+import { Circle, Triangle, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Settings2, X, Square } from "lucide-react";
 import React from "react";
 
 interface ButtonConfig {
@@ -15,6 +15,7 @@ interface ControllerProps {
   onPositionChange: (key: string, pos: Partial<ButtonConfig>) => void;
   selectedKey?: string | null;
   onSelect?: (key: string | null) => void;
+  onResetAll?: () => void;
 }
 
 export default function PS2VirtualController({ 
@@ -22,9 +23,12 @@ export default function PS2VirtualController({
   positions,
   onPositionChange,
   selectedKey = null,
-  onSelect
+  onSelect,
+  onResetAll
 }: ControllerProps) {
   const [windowWidth, setWindowWidth] = React.useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  const [draggingKey, setDraggingKey] = React.useState<string | null>(null);
+  const hasDraggedRef = React.useRef(false);
   const isMobile = windowWidth < 768;
 
   React.useEffect(() => {
@@ -39,10 +43,10 @@ export default function PS2VirtualController({
       case 'DOWN': return <ChevronDown className="w-full h-full" />;
       case 'LEFT': return <ChevronLeft className="w-full h-full" />;
       case 'RIGHT': return <ChevronRight className="w-full h-full" />;
-      case 'TRIANGLE': return <Triangle className="w-full h-full text-green-400" />;
-      case 'CIRCLE': return <Circle className="w-full h-full text-red-500" />;
-      case 'CROSS': return <span className="text-2xl text-blue-400 font-bold">✕</span>;
-      case 'SQUARE': return <span className="text-2xl text-pink-400 font-bold">□</span>;
+      case 'TRIANGLE': return <Triangle className="w-full h-full p-2 text-green-400" />;
+      case 'CIRCLE': return <Circle className="w-full h-full p-2 text-red-500" />;
+      case 'CROSS': return <X className="w-full h-full p-2 text-blue-400" />;
+      case 'SQUARE': return <Square className="w-full h-full p-2 text-pink-400" />;
       case 'SELECT': return <span className="text-[10px] font-bold tracking-tighter">SELECT</span>;
       case 'START': return <span className="text-[10px] font-bold tracking-tighter">START</span>;
       case 'L1': return <span className="font-bold">L1</span>;
@@ -53,6 +57,7 @@ export default function PS2VirtualController({
       case 'R3': return <span className="font-bold text-[10px]">R3</span>;
       case 'ANALOG_L': return <div className="w-full h-full rounded-full bg-white/20 border-4 border-white/10 flex items-center justify-center"><div className="w-1/2 h-1/2 rounded-full bg-white/10" /></div>;
       case 'ANALOG_R': return <div className="w-full h-full rounded-full bg-white/20 border-4 border-white/10 flex items-center justify-center"><div className="w-1/2 h-1/2 rounded-full bg-white/10" /></div>;
+      case 'ANALOG_TOGGLE': return <div className="w-full h-full rounded-full border-2 border-white/40 flex items-center justify-center bg-black/50 shadow-inner"><div className="w-2/3 h-2/3 rounded-full bg-red-600 shadow-[0_0_8px_red] animate-pulse" /></div>;
       default: return null;
     }
   };
@@ -60,8 +65,9 @@ export default function PS2VirtualController({
   const getButtonClass = (key: string) => {
     const mobileScale = isMobile ? 'scale-[0.8]' : '';
     const base = `flex items-center justify-center backdrop-blur-md transition-all active:scale-95 shadow-xl border border-white/20 text-white/70 ${mobileScale}`;
-    if (key.includes('ANALOG')) return `${base} w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white/5`;
+    if (key.includes('ANALOG_L') || key.includes('ANALOG_R')) return `${base} w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white/5`;
     if (key === 'SELECT' || key === 'START') return `${base} px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-white/10`;
+    if (key === 'ANALOG_TOGGLE') return `${base} w-8 h-8 sm:w-10 sm:h-10 rounded-full`;
     if (key.includes('L') || key.includes('R')) return `${base} w-14 h-8 sm:w-16 sm:h-10 rounded-lg bg-white/10`;
     if (['UP', 'DOWN', 'LEFT', 'RIGHT'].includes(key)) return `${base} w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-white/10`;
     return `${base} w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/10`; 
@@ -75,7 +81,7 @@ export default function PS2VirtualController({
 
     if (['R1', 'R2', 'R3', 'ANALOG_R', 'TRIANGLE', 'CIRCLE', 'CROSS', 'SQUARE'].includes(key)) {
       style.left = 'auto'; style.right = margin;
-    } else if (['SELECT', 'START'].includes(key)) {
+    } else if (['SELECT', 'START', 'ANALOG_TOGGLE'].includes(key)) {
       style.left = '50%';
     } else {
       style.left = margin;
@@ -83,7 +89,7 @@ export default function PS2VirtualController({
 
     if (['L1', 'L2', 'R1', 'R2'].includes(key)) {
       style.top = margin; style.bottom = 'auto';
-    } else if (['SELECT', 'START'].includes(key)) {
+    } else if (['SELECT', 'START', 'ANALOG_TOGGLE'].includes(key)) {
       style.top = 'auto'; style.bottom = margin + 20;
     } else {
       style.top = 'auto'; style.bottom = margin;
@@ -96,14 +102,14 @@ export default function PS2VirtualController({
     <div className={`fixed inset-0 pointer-events-none z-[80] ${isEditing ? 'bg-black select-none overflow-hidden' : ''}`}>
       {isEditing && (
         <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
-          <div className="grid grid-cols-12 gap-4 w-full h-full p-4">
+          <div className="grid grid-cols-12 gap-0 w-full h-full">
              {Array.from({ length: 144 }).map((_, i) => <div key={i} className="border border-white/20 w-full h-full" />)}
           </div>
         </div>
       )}
 
       {Object.entries(positions).map(([key, config]) => {
-        const isCenter = ['SELECT', 'START'].includes(key);
+        const isCenter = ['SELECT', 'START', 'ANALOG_TOGGLE'].includes(key);
         const mobileScaleFactor = isMobile ? 0.75 : 1;
         
         return (
@@ -111,13 +117,30 @@ export default function PS2VirtualController({
             key={key}
             drag={isEditing}
             dragMomentum={false}
+            onDragStart={() => {
+              setDraggingKey(key);
+              hasDraggedRef.current = true;
+              if (onSelect) onSelect(null);
+            }}
             onDragEnd={(_, info) => {
+              setDraggingKey(null);
+              setTimeout(() => {
+                hasDraggedRef.current = false;
+              }, 100);
+              const SNAP = 10; // 10px snap grid
+              const rawX = config.x + (info.offset.x / mobileScaleFactor);
+              const rawY = config.y + (info.offset.y / mobileScaleFactor);
               onPositionChange(key, { 
-                x: config.x + (info.offset.x / mobileScaleFactor), 
-                y: config.y + (info.offset.y / mobileScaleFactor) 
+                x: Math.round(rawX / SNAP) * SNAP, 
+                y: Math.round(rawY / SNAP) * SNAP 
               });
             }}
-            onTap={() => isEditing && onSelect?.(key)}
+            onTap={(e) => {
+              // Only select if it's a solid tap, we're editing, and we didn't just drag
+              if (isEditing && onSelect && !hasDraggedRef.current) {
+                onSelect(key);
+              }
+            }}
             initial={{
               x: config.x * mobileScaleFactor,
               y: config.y * mobileScaleFactor,
@@ -142,6 +165,7 @@ export default function PS2VirtualController({
               relative ${getButtonClass(key)}
               ${selectedKey === key ? 'ring-4 ring-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.5)]' : ''}
               ${isEditing ? 'hover:ring-2 hover:ring-white/50' : ''}
+              ${draggingKey === key ? 'ring-2 ring-dashed ring-yellow-400 opacity-80 scale-105 shadow-2xl' : ''}
             `}>
               {renderIcon(key)}
               {isEditing && selectedKey === key && (
@@ -154,13 +178,24 @@ export default function PS2VirtualController({
         );
       })}
 
-      {isEditing && !selectedKey && (
-        <div className="absolute bottom-10 left-10 z-[100] bg-white/10 backdrop-blur-xl border border-white/20 p-6 rounded-3xl max-w-sm pointer-events-auto">
-          <h2 className="text-white font-bold tracking-widest uppercase text-xs mb-2">Control Customizer</h2>
-          <p className="text-white/40 text-[10px] leading-relaxed uppercase">
+      {isEditing && !selectedKey && !draggingKey && (
+        <div className="absolute bottom-4 left-4 sm:bottom-10 sm:left-10 z-[100] bg-black/50 backdrop-blur-xl border border-white/20 p-4 sm:p-6 rounded-2xl sm:rounded-3xl max-w-[200px] sm:max-w-sm pointer-events-auto shadow-2xl">
+          <h2 className="text-white font-bold tracking-widest uppercase text-[10px] sm:text-xs mb-2">Control Customizer</h2>
+          <p className="text-white/40 text-[8px] sm:text-[10px] leading-relaxed uppercase hidden sm:block mb-4">
             Click any button to adjust its properties. Drag buttons to move them.
-            Positions are relative to screen corners for better landscape support.
+            Positions are snapped to a 10px grid.
           </p>
+          <p className="text-white/40 text-[8px] leading-relaxed uppercase sm:hidden mb-2">
+            Tap to edit. Drag to move.
+          </p>
+          {onResetAll && (
+            <button 
+              onClick={onResetAll} 
+              className="w-full px-4 py-2 sm:py-3 bg-red-500/20 text-red-400 font-bold uppercase text-[8px] sm:text-[10px] tracking-widest rounded-xl border border-red-500/30 hover:bg-red-500/30 transition-all active:scale-95 shadow-lg"
+            >
+              Reset Layout
+            </button>
+          )}
         </div>
       )}
     </div>

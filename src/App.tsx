@@ -54,7 +54,7 @@ export default function App() {
         )}
 
         {state === "dashboard" && (
-          <div className="min-h-screen flex items-center justify-center p-4">
+          <div className="min-h-screen flex flex-col items-center justify-start sm:justify-center p-4 overflow-y-auto">
             <PS2Dashboard />
           </div>
         )}

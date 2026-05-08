@@ -9,31 +9,48 @@ type Screen = "main" | "storage" | "config" | "emulator" | "running" | "customiz
 
 type GameMetadata = Omit<StoredGame, 'data'>;
 
+export interface ControllerProfile {
+  id: string;
+  name: string;
+  vPositions: typeof DEFAULT_V_POSITIONS;
+  keyMapping: Record<string, string>;
+  overlayOpacity: number;
+  vControllerSize: string;
+  virtualControls: boolean;
+}
+
 const DEFAULT_V_POSITIONS = {
   // Shoulder Left (Grouped Top Left)
-  L2: { x: 0, y: 0, scale: 1, opacity: 0.6 },
-  L1: { x: 60, y: 0, scale: 1, opacity: 0.6 },
+  L1: { x: 10, y: 10, scale: 1, opacity: 0.6 },
+  L2: { x: 10, y: 60, scale: 1, opacity: 0.6 },
   // Shoulder Right (Grouped Top Right)
-  R2: { x: 0, y: 0, scale: 1, opacity: 0.6 },
-  R1: { x: -60, y: 0, scale: 1, opacity: 0.6 },
-  // D-Pad (Grouped Bottom Left, Cross shape)
-  UP: { x: 60, y: -120, scale: 1, opacity: 0.6 },
-  DOWN: { x: 60, y: 0, scale: 1, opacity: 0.6 },
-  LEFT: { x: 0, y: -60, scale: 1, opacity: 0.6 },
-  RIGHT: { x: 120, y: -60, scale: 1, opacity: 0.6 },
-  // Face Buttons (Grouped Bottom Right, Diamond shape)
-  TRIANGLE: { x: -60, y: -120, scale: 1, opacity: 0.6 },
-  CROSS: { x: -60, y: 0, scale: 1, opacity: 0.6 },
-  SQUARE: { x: -120, y: -60, scale: 1, opacity: 0.6 },
-  CIRCLE: { x: 0, y: -60, scale: 1, opacity: 0.6 },
-  // Center
-  SELECT: { x: -60, y: -10, scale: 1, opacity: 0.6 },
-  START: { x: 60, y: -10, scale: 1, opacity: 0.6 },
-  // Analogs (Positioned towards the center screen)
-  ANALOG_L: { x: 180, y: -10, scale: 1, opacity: 0.4 },
-  ANALOG_R: { x: -180, y: -10, scale: 1, opacity: 0.4 },
-  L3: { x: 180, y: -80, scale: 0.8, opacity: 0.4 },
-  R3: { x: -180, y: -80, scale: 0.8, opacity: 0.4 },
+  R1: { x: -10, y: 10, scale: 1, opacity: 0.6 },
+  R2: { x: -10, y: 60, scale: 1, opacity: 0.6 },
+  
+  // D-Pad (Top Left, Cross shape)
+  UP: { x: 70, y: -200, scale: 1, opacity: 0.6 },
+  LEFT: { x: 10, y: -140, scale: 1, opacity: 0.6 },
+  RIGHT: { x: 130, y: -140, scale: 1, opacity: 0.6 },
+  DOWN: { x: 70, y: -80, scale: 1, opacity: 0.6 },
+  
+  // Left Analog (Below D-Pad, towards center)
+  ANALOG_L: { x: 180, y: -30, scale: 1, opacity: 0.4 },
+  L3: { x: 180, y: -30, scale: 0.8, opacity: 0.2 },
+
+  // Face Buttons (Top Right, Diamond shape)
+  TRIANGLE: { x: -70, y: -200, scale: 1, opacity: 0.6 },
+  SQUARE: { x: -130, y: -140, scale: 1, opacity: 0.6 },
+  CIRCLE: { x: -10, y: -140, scale: 1, opacity: 0.6 },
+  CROSS: { x: -70, y: -80, scale: 1, opacity: 0.6 },
+  
+  // Right Analog (Below Face Buttons, towards center)
+  ANALOG_R: { x: -180, y: -30, scale: 1, opacity: 0.4 },
+  R3: { x: -180, y: -30, scale: 0.8, opacity: 0.2 },
+
+  // Center Area
+  SELECT: { x: -70, y: -120, scale: 1, opacity: 0.6 },
+  START: { x: 70, y: -120, scale: 1, opacity: 0.6 },
+  ANALOG_TOGGLE: { x: 0, y: -90, scale: 0.6, opacity: 0.8 },
 };
 
 export default function PS2Dashboard() {
@@ -66,7 +83,9 @@ export default function PS2Dashboard() {
         L1: "q", R1: "e", L2: "1", R2: "3",
         UP: "w", DOWN: "s", LEFT: "a", RIGHT: "d",
         START: "Enter", SELECT: "Shift"
-      }
+      },
+      profiles: [] as ControllerProfile[],
+      activeProfileId: "default"
     };
     if (saved) {
       try {
@@ -85,6 +104,8 @@ export default function PS2Dashboard() {
 
   const [activeMappingKey, setActiveMappingKey] = useState<string | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [profileNameInput, setProfileNameInput] = useState("");
+  const [resetKey, setResetKey] = useState(0);
 
   // Load games from real IndexedDB
   const refreshStorage = async () => {
@@ -260,13 +281,6 @@ export default function PS2Dashboard() {
         return (
           <div className="fixed inset-0 bg-black z-[100] flex flex-col items-center justify-center overflow-hidden touch-none">
             {renderPortraitGuard()}
-            {/* FPS Display */}
-            {config.showFPS && (
-              <div className="fixed top-0 right-0 z-[200] font-mono text-[9px] text-green-400 bg-black/40 px-2 py-1 flex items-center gap-1.5 rounded-bl-lg border-l border-b border-green-500/20 backdrop-blur-md">
-                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                FPS: {fps} / {config.fpsTarget}
-              </div>
-            )}
 
             {/* Background Grid */}
             <div className="absolute inset-0 opacity-10 pointer-events-none">
@@ -276,10 +290,17 @@ export default function PS2Dashboard() {
             </div>
 
             <PS2VirtualController 
+              key={resetKey}
               isEditing={true}
               positions={config.vPositions}
               selectedKey={selectedKey}
               onSelect={setSelectedKey}
+              onResetAll={() => {
+                if (confirm("Reset ALL button positions and sizes to default?")) {
+                  setConfig(prev => ({ ...prev, vPositions: DEFAULT_V_POSITIONS }));
+                  setResetKey(prev => prev + 1);
+                }
+              }}
               onPositionChange={(key, pos) => setConfig(prev => ({
                 ...prev,
                 vPositions: { 
@@ -369,28 +390,25 @@ export default function PS2Dashboard() {
               )}
             </AnimatePresence>
 
-            {/* Header Controls */}
-            <div className={`fixed top-4 left-4 flex flex-col gap-1 z-[110] transition-all safe-top ${selectedKey ? 'opacity-20 sm:opacity-100 pointer-events-none sm:pointer-events-auto' : ''}`}>
-               <h2 className="text-white font-bold tracking-[0.2em] uppercase text-[9px] sm:text-xs text-shadow-sm">Layout Lab</h2>
-               <span className="text-white/50 text-[7px] sm:text-[8px] uppercase tracking-tighter drop-shadow-md">Drag to reposition • Tap to resize</span>
-            </div>
+            {/* Bottom-right layout text removed for cleaner UI */}
             
-            <div className={`fixed top-4 left-1/2 -translate-x-1/2 flex gap-3 z-[110] transition-all safe-top ${selectedKey ? 'opacity-20 sm:opacity-100 pointer-events-none sm:pointer-events-auto' : ''}`}>
+            <div className={`fixed top-4 right-4 sm:top-6 sm:right-6 flex flex-col sm:flex-row gap-2 z-[110] transition-all ${selectedKey ? 'opacity-0 pointer-events-none' : ''}`}>
+              <button 
+                onClick={() => setScreen("main")}
+                className="px-4 py-2 bg-blue-600/60 border border-blue-500/30 text-white/90 rounded-md text-[8px] uppercase font-bold tracking-widest active:scale-95 backdrop-blur-sm shadow-xl"
+              >
+                Save
+              </button>
               <button 
                 onClick={() => {
                   if (confirm("Reset ALL button positions and sizes to default?")) {
                     setConfig(prev => ({ ...prev, vPositions: DEFAULT_V_POSITIONS }));
+                    setResetKey(prev => prev + 1);
                   }
                 }}
-                className="px-4 sm:px-6 py-2 sm:py-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-full text-[8px] sm:text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-red-500/20 active:scale-95 shadow-lg backdrop-blur-md"
+                className="px-4 py-2 bg-zinc-800/60 border border-white/5 text-white/30 rounded-md text-[8px] uppercase font-bold tracking-widest active:scale-95 backdrop-blur-sm shadow-xl"
               >
                 Reset
-              </button>
-              <button 
-                onClick={() => setScreen("main")}
-                className="px-6 sm:px-8 py-2 sm:py-3 bg-blue-600 border border-blue-500 text-white rounded-full text-[8px] sm:text-[10px] uppercase font-bold tracking-widest shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all hover:bg-blue-500 active:scale-95 backdrop-blur-md"
-              >
-                Save
               </button>
             </div>
 
@@ -754,6 +772,111 @@ export default function PS2Dashboard() {
                       onChange={(e) => setConfig({ ...config, overlayOpacity: parseInt(e.target.value) })}
                     />
                   </div>
+                  
+                  <div className="flex flex-col gap-2 pt-4 border-t border-white/5">
+                    <span className="text-[10px] text-white/40 uppercase">Save Controller Profile</span>
+                    <div className="flex gap-2">
+                       <input 
+                         type="text" 
+                         value={profileNameInput} 
+                         onChange={e => setProfileNameInput(e.target.value)}
+                         placeholder="Profile name..."
+                         className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-blue-500/50"
+                       />
+                       <button
+                         onClick={() => {
+                           if (!profileNameInput.trim()) return;
+                           const newProfile: ControllerProfile = {
+                             id: Date.now().toString(),
+                             name: profileNameInput.trim(),
+                             vPositions: config.vPositions,
+                             keyMapping: config.keyMapping,
+                             overlayOpacity: config.overlayOpacity,
+                             vControllerSize: config.vControllerSize,
+                             virtualControls: config.virtualControls
+                           };
+                           setConfig({
+                             ...config,
+                             profiles: [...(config.profiles || []), newProfile],
+                             activeProfileId: newProfile.id
+                           });
+                           setProfileNameInput("");
+                         }}
+                         className="px-4 py-2 bg-blue-500/20 text-blue-300 font-bold uppercase text-[9px] rounded-lg hover:bg-blue-500/40 transition-colors"
+                       >
+                         Save
+                       </button>
+                    </div>
+                  </div>
+
+                  {(config.profiles && config.profiles.length > 0) && (
+                    <div className="flex flex-col gap-2 pt-2">
+                      <span className="text-[10px] text-white/40 uppercase">Active Profile</span>
+                      <div className="flex gap-2">
+                         <select
+                           value={config.activeProfileId || "default"}
+                           onChange={(e) => {
+                             const id = e.target.value;
+                             if (id === "default") {
+                                setConfig({ 
+                                  ...config, 
+                                  activeProfileId: "default",
+                                  vPositions: DEFAULT_V_POSITIONS,
+                                  keyMapping: {
+                                    CROSS: "k", CIRCLE: "l", SQUARE: "j", TRIANGLE: "i",
+                                    L1: "q", R1: "e", L2: "1", R2: "3",
+                                    UP: "w", DOWN: "s", LEFT: "a", RIGHT: "d",
+                                    START: "Enter", SELECT: "Shift"
+                                  }
+                                });
+                             } else {
+                               const profile = config.profiles.find((p: ControllerProfile) => p.id === id);
+                               if (profile) {
+                                 setConfig({
+                                   ...config,
+                                   activeProfileId: id,
+                                   vPositions: profile.vPositions,
+                                   keyMapping: profile.keyMapping,
+                                   overlayOpacity: profile.overlayOpacity,
+                                   vControllerSize: profile.vControllerSize,
+                                   virtualControls: profile.virtualControls,
+                                 });
+                               }
+                             }
+                           }}
+                           className="flex-1 bg-black/40 border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-blue-500/50"
+                         >
+                           <option value="default">Default</option>
+                           {config.profiles.map((p: ControllerProfile) => (
+                             <option key={p.id} value={p.id}>{p.name}</option>
+                           ))}
+                         </select>
+                         <button
+                            onClick={() => {
+                              if (confirm("Delete this controller profile?")) {
+                                setConfig({
+                                  ...config,
+                                  profiles: config.profiles.filter((p: ControllerProfile) => p.id !== config.activeProfileId),
+                                  activeProfileId: "default",
+                                  vPositions: DEFAULT_V_POSITIONS,
+                                  keyMapping: {
+                                    CROSS: "k", CIRCLE: "l", SQUARE: "j", TRIANGLE: "i",
+                                    L1: "q", R1: "e", L2: "1", R2: "3",
+                                    UP: "w", DOWN: "s", LEFT: "a", RIGHT: "d",
+                                    START: "Enter", SELECT: "Shift"
+                                  }
+                                });
+                              }
+                            }}
+                            disabled={!config.activeProfileId || config.activeProfileId === "default"}
+                            className="px-3 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/40 disabled:opacity-20 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                         >
+                            <Trash2 className="w-3 h-3" />
+                         </button>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               </div>
               
@@ -815,6 +938,11 @@ export default function PS2Dashboard() {
               <PS2VirtualController 
                 isEditing={true}
                 positions={config.vPositions}
+                onResetAll={() => {
+                  if (confirm("Reset ALL button positions and sizes to default?")) {
+                    setConfig(prev => ({ ...prev, vPositions: DEFAULT_V_POSITIONS }));
+                  }
+                }}
                 onPositionChange={(key, pos) => setConfig(prev => ({
                   ...prev,
                   vPositions: { 
@@ -829,7 +957,7 @@ export default function PS2Dashboard() {
 
       case "running":
         return (
-          <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center overflow-hidden touch-none overflow-y-hidden">
+          <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center overflow-hidden touch-none">
             {renderPortraitGuard()}
             {/* Simulation of Game Content */}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -867,12 +995,6 @@ export default function PS2Dashboard() {
                   </button>
                 </div>
               )}
-            </div>
-
-            {/* In-Game HUD */}
-            <div className={`absolute top-0 right-0 font-mono text-green-500 text-[9px] bg-black/50 px-2 py-1 z-[200] flex items-center gap-1.5 rounded-bl-lg backdrop-blur border-l border-b border-white/10 transition-opacity ${config.showFPS ? 'opacity-100' : 'opacity-0'}`}>
-                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                FPS: 59.9
             </div>
 
             {/* Real-time Settings Toggle */}
@@ -971,6 +1093,11 @@ export default function PS2Dashboard() {
                 <PS2VirtualController 
                   isEditing={config.editLayoutMode}
                   positions={config.vPositions}
+                  onResetAll={() => {
+                    if (confirm("Reset ALL button positions and sizes to default?")) {
+                      setConfig(prev => ({ ...prev, vPositions: DEFAULT_V_POSITIONS }));
+                    }
+                  }}
                   onPositionChange={(key, pos) => setConfig(prev => ({
                     ...prev,
                     vPositions: { 
@@ -995,7 +1122,12 @@ export default function PS2Dashboard() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex flex-col items-center justify-start sm:justify-center p-4">
+      {config.showFPS && (screen === "customizer" || screen === "running") && (
+        <div className="fixed top-0 right-0 z-[1000] font-mono text-[7px] text-green-500/80 bg-black/40 px-1 py-0.5 border-l border-b border-white/5 pointer-events-none select-none cursor-default">
+          {fps}
+        </div>
+      )}
       <AnimatePresence mode="wait">
         <motion.div
           key={screen}

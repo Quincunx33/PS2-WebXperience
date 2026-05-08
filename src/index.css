@@ -8,9 +8,8 @@
 
 @layer base {
   body {
-    @apply bg-black text-white antialiased overflow-x-hidden;
-    touch-action: none;
-    overscroll-behavior: none;
+    @apply bg-black text-white antialiased overflow-x-hidden overflow-y-auto;
+    touch-action: pan-y;
     -webkit-tap-highlight-color: transparent;
     zoom: var(--app-scale, 1);
   }
