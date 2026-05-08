@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Settings, Disc, Box, ChevronRight, Info, AlertTriangle, Database, HardDrive, Trash2, Cpu } from "lucide-react";
 import PS2Clock from "./PS2Clock";
 import { StorageService, StoredGame } from "../services/storageService";
+import PS2VirtualController from "./PS2VirtualController";
 
 type Screen = "main" | "storage" | "config" | "emulator" | "running";
 
@@ -18,6 +19,31 @@ export default function PS2Dashboard() {
   const [isInstalling, setIsInstalling] = useState(false);
   const [installProgress, setInstallProgress] = useState(0);
 
+  // System Configuration State
+  const [config, setConfig] = useState({
+    resolution: "480p",
+    showFPS: true,
+    scanlines: false,
+    ramAllocation: "1GB",
+    virtualControls: true,
+    overlayOpacity: 40,
+    vControllerSize: "md", // sm, md, lg
+    keyMapping: {
+      CROSS: "k",
+      CIRCLE: "l",
+      SQUARE: "j",
+      TRIANGLE: "i",
+      UP: "w",
+      DOWN: "s",
+      LEFT: "a",
+      RIGHT: "d",
+      START: "Enter",
+      SELECT: "Shift"
+    }
+  });
+
+  const [activeMappingKey, setActiveMappingKey] = useState<string | null>(null);
+
   // Load games from real IndexedDB
   const refreshStorage = async () => {
     try {
@@ -31,6 +57,21 @@ export default function PS2Dashboard() {
   useEffect(() => {
     refreshStorage();
   }, [screen]);
+
+  useEffect(() => {
+    if (activeMappingKey) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        e.preventDefault();
+        setConfig(prev => ({
+          ...prev,
+          keyMapping: { ...prev.keyMapping, [activeMappingKey]: e.key }
+        }));
+        setActiveMappingKey(null);
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [activeMappingKey]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -342,6 +383,167 @@ export default function PS2Dashboard() {
           </div>
         );
 
+      case "config":
+        return (
+          <div className="flex flex-col items-center gap-6 sm:gap-8 w-full max-w-4xl mx-auto px-4">
+            <div className="text-white text-xl sm:text-3xl tracking-[0.2em] sm:tracking-[0.4em] font-bold uppercase flex items-center gap-3 sm:gap-4 text-center">
+              <Settings className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400" />
+              SYSTEM CONFIGURATION
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 w-full">
+              {/* Graphics Settings */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-5 sm:p-6 space-y-4">
+                <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[10px] sm:text-xs">Graphics Engine</h3>
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] text-white/40 uppercase">Internal Resolution</span>
+                    <div className="flex gap-2">
+                       {["360p", "480p", "720p"].map(res => (
+                        <button 
+                          key={res} 
+                          onClick={() => setConfig({ ...config, resolution: res })}
+                          className={`flex-1 py-2 rounded-lg border text-[10px] uppercase font-bold transition-all ${config.resolution === res ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-white/40'}`}
+                        >
+                          {res}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-white/40 uppercase">Show FPS Counter</span>
+                    <div 
+                      onClick={() => setConfig({ ...config, showFPS: !config.showFPS })}
+                      className={`w-10 h-5 border transition-colors rounded-full relative cursor-pointer ${config.showFPS ? 'bg-blue-500/20 border-blue-500/50' : 'bg-white/5 border-white/10'}`}
+                    >
+                      <motion.div 
+                        animate={{ x: config.showFPS ? 20 : 4 }}
+                        className={`absolute top-1 w-3 h-3 rounded-full ${config.showFPS ? 'bg-blue-400' : 'bg-white/20'}`} 
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-white/40 uppercase">Retro Scanlines</span>
+                    <div 
+                       onClick={() => setConfig({ ...config, scanlines: !config.scanlines })}
+                       className={`w-10 h-5 border transition-colors rounded-full relative cursor-pointer ${config.scanlines ? 'bg-blue-500/20 border-blue-500/50' : 'bg-white/5 border-white/10'}`}
+                    >
+                      <motion.div 
+                        animate={{ x: config.scanlines ? 20 : 4 }}
+                        className={`absolute top-1 w-3 h-3 rounded-full ${config.scanlines ? 'bg-blue-400' : 'bg-white/20'}`} 
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Performance / RAM */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-5 sm:p-6 space-y-4">
+                <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[10px] sm:text-xs">Memory Allocation</h3>
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] text-white/40 uppercase">WASM Heap Size</span>
+                    <div className="flex gap-2">
+                      {["512MB", "1GB", "2GB"].map(ram => (
+                        <button 
+                          key={ram} 
+                          onClick={() => setConfig({ ...config, ramAllocation: ram })}
+                          className={`flex-1 py-2 rounded-lg border text-[10px] uppercase font-bold transition-all ${config.ramAllocation === ram ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-white/40'}`}
+                        >
+                          {ram}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-blue-500/5 rounded-xl">
+                     <Cpu className="w-4 h-4 text-blue-400" />
+                     <span className="text-[10px] text-white/60 font-mono uppercase tracking-tighter">Dual-Core (MTGS) Enabled</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Input Settings */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-5 sm:p-6 space-y-4">
+                <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[10px] sm:text-xs">Controller Setup</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl cursor-pointer" onClick={() => setConfig({ ...config, virtualControls: !config.virtualControls })}>
+                    <div className="flex items-center gap-3">
+                      <Cpu className="w-4 h-4 text-blue-400" />
+                      <span className="text-[10px] text-white font-bold uppercase">Virtual Controls</span>
+                    </div>
+                    <div className={`w-9 h-5 rounded-full relative transition-colors ${config.virtualControls ? 'bg-blue-600' : 'bg-zinc-700'}`}>
+                      <motion.div 
+                        animate={{ x: config.virtualControls ? 18 : 2 }}
+                        className="absolute top-[2px] w-4 h-4 bg-white rounded-full shadow-sm" 
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] text-white/40 uppercase">Overlay Opacity ({config.overlayOpacity}%)</span>
+                    <input 
+                      type="range" 
+                      className="w-full accent-blue-500 opacity-70 cursor-pointer" 
+                      min="10" 
+                      max="100" 
+                      value={config.overlayOpacity}
+                      onChange={(e) => setConfig({ ...config, overlayOpacity: parseInt(e.target.value) })}
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Controller Mapping */}
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-5 sm:p-6 space-y-4 md:col-span-2 lg:col-span-3">
+                <h3 className="text-blue-300 font-bold uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-between">
+                  Button Mapping
+                  <span className="text-[9px] text-white/20 normal-case font-normal italic">
+                    {activeMappingKey ? `Press a key for ${activeMappingKey}...` : "Click a button to remap"}
+                  </span>
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                  {Object.entries(config.keyMapping).map(([btn, key]) => (
+                    <button
+                      key={btn}
+                      onClick={() => setActiveMappingKey(btn as string)}
+                      className={`flex flex-col items-center gap-1 p-3 rounded-xl border transition-all ${activeMappingKey === btn ? 'bg-blue-500/40 border-blue-400 scale-105' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
+                    >
+                      <span className="text-[9px] text-blue-400 font-bold uppercase">{btn}</span>
+                      <span className="text-xs text-white font-mono">{key === " " ? "Space" : key as string}</span>
+                    </button>
+                  ))}
+                </div>
+                
+                <div className="pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center gap-6">
+                  <div className="flex flex-col gap-2 w-full sm:w-1/3">
+                    <span className="text-[10px] text-white/40 uppercase">Virtual Controller Size</span>
+                    <div className="flex gap-2">
+                       {["sm", "md", "lg"].map(size => (
+                        <button 
+                          key={size} 
+                          onClick={() => setConfig({ ...config, vControllerSize: size })}
+                          className={`flex-1 py-1.5 rounded-lg border text-[9px] uppercase font-bold transition-all ${config.vControllerSize === size ? 'bg-blue-500/20 border-blue-400 text-white' : 'bg-white/5 border-white/10 text-white/40'}`}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-white/20 uppercase max-w-sm">
+                    Configure your physical keyboard layout or adjust the on-screen overlay dimensions for the optimal mobile gameplay experience.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setScreen("main")}
+              className="mt-6 px-10 py-3 border border-white/20 text-white/70 hover:bg-white/10 rounded-full transition-all uppercase text-[10px] font-bold tracking-[0.2em]"
+            >
+              Back to Menu
+            </button>
+          </div>
+        );
+
       case "running":
         return (
           <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center">
@@ -403,11 +605,24 @@ export default function PS2Dashboard() {
               )}
             </div>
 
-            <div className="mt-8 text-white/20 font-mono text-[10px] flex gap-8">
-              <span>GS: OpenGL / Vulkan Hybrid</span>
-              <span>MEMORY: 32MB Main RAM</span>
-              <span>INPUT: Keyboard Enabled</span>
+            <div className="mt-8 text-white/20 font-mono text-[9px] sm:text-[10px] flex flex-wrap justify-center gap-4 sm:gap-8 px-4">
+              {config.showFPS && (
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-500 animate-ping" />
+                  <span>FPS: 59.9 / 60.0 (NTSC)</span>
+                </div>
+              )}
+              <span>GS: {config.resolution} • OpenGL</span>
+              <span>MEMORY: 32MB Main / {config.ramAllocation} WASM</span>
+              <span>INPUT: Keyboard & {config.virtualControls ? 'Virtual' : 'Manual'} Enabled</span>
             </div>
+
+            {/* Mobile/Tablet Virtual Overlay */}
+            {config.virtualControls && (
+              <div style={{ opacity: config.overlayOpacity / 100 }}>
+                <PS2VirtualController size={config.vControllerSize} />
+              </div>
+            )}
           </div>
         );
 
