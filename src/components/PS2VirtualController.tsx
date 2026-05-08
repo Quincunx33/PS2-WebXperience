@@ -59,7 +59,6 @@ export default function PS2VirtualController({
       case 'R3': return <span className="font-bold text-[10px]">R3</span>;
       case 'ANALOG_L': return <div className="w-full h-full rounded-full bg-white/20 border-4 border-white/10 flex items-center justify-center"><div className="w-1/2 h-1/2 rounded-full bg-white/10" /></div>;
       case 'ANALOG_R': return <div className="w-full h-full rounded-full bg-white/20 border-4 border-white/10 flex items-center justify-center"><div className="w-1/2 h-1/2 rounded-full bg-white/10" /></div>;
-      case 'ANALOG_TOGGLE': return <div className="w-full h-full rounded-full border-2 border-white/40 flex items-center justify-center bg-black/50 shadow-inner"><div className="w-2/3 h-2/3 rounded-full bg-red-600 shadow-[0_0_8px_red] animate-pulse" /></div>;
       default: return null;
     }
   };
@@ -69,7 +68,6 @@ export default function PS2VirtualController({
     const base = `flex items-center justify-center backdrop-blur-md transition-all active:scale-95 shadow-xl border border-white/20 text-white/70 ${mobileScale}`;
     if (key.includes('ANALOG_L') || key.includes('ANALOG_R')) return `${base} w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white/5`;
     if (key === 'SELECT' || key === 'START') return `${base} px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-white/10`;
-    if (key === 'ANALOG_TOGGLE') return `${base} w-8 h-8 sm:w-10 sm:h-10 rounded-full`;
     if (key.includes('L') || key.includes('R')) return `${base} w-14 h-8 sm:w-16 sm:h-10 rounded-lg bg-white/10`;
     if (['UP', 'DOWN', 'LEFT', 'RIGHT'].includes(key)) return `${base} w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-white/10`;
     return `${base} w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white/10`; 
@@ -83,7 +81,7 @@ export default function PS2VirtualController({
 
     if (['R1', 'R2', 'R3', 'ANALOG_R', 'TRIANGLE', 'CIRCLE', 'CROSS', 'SQUARE'].includes(key)) {
       style.left = 'auto'; style.right = margin;
-    } else if (['SELECT', 'START', 'ANALOG_TOGGLE'].includes(key)) {
+    } else if (['SELECT', 'START'].includes(key)) {
       style.left = '50%';
     } else {
       style.left = margin;
@@ -91,7 +89,7 @@ export default function PS2VirtualController({
 
     if (['L1', 'L2', 'R1', 'R2'].includes(key)) {
       style.top = margin; style.bottom = 'auto';
-    } else if (['SELECT', 'START', 'ANALOG_TOGGLE'].includes(key)) {
+    } else if (['SELECT', 'START'].includes(key)) {
       style.top = 'auto'; style.bottom = margin + 20;
     } else {
       style.top = 'auto'; style.bottom = margin;
@@ -111,7 +109,7 @@ export default function PS2VirtualController({
       )}
 
       {Object.entries(positions).map(([key, config]) => {
-        const isCenter = ['SELECT', 'START', 'ANALOG_TOGGLE'].includes(key);
+        const isCenter = ['SELECT', 'START'].includes(key);
         const mobileScaleFactor = isMobile ? 0.75 : 1;
         
         return (
@@ -184,21 +182,13 @@ export default function PS2VirtualController({
       {isEditing && !selectedKey && !draggingKey && (
         <div className="absolute bottom-4 left-4 sm:bottom-10 sm:left-10 z-[100] bg-black/50 backdrop-blur-xl border border-white/20 p-4 sm:p-6 rounded-2xl sm:rounded-3xl max-w-[200px] sm:max-w-sm pointer-events-auto shadow-2xl">
           <h2 className="text-white font-bold tracking-widest uppercase text-[10px] sm:text-xs mb-2">Control Customizer</h2>
-          <p className="text-white/40 text-[8px] sm:text-[10px] leading-relaxed uppercase hidden sm:block mb-4">
+          <p className="text-white/40 text-[8px] sm:text-[10px] leading-relaxed uppercase hidden sm:block">
             Click any button to adjust its properties. Drag buttons to move them.
             Positions are snapped to a 10px grid.
           </p>
-          <p className="text-white/40 text-[8px] leading-relaxed uppercase sm:hidden mb-2">
+          <p className="text-white/40 text-[8px] leading-relaxed uppercase sm:hidden">
             Tap to edit. Drag to move.
           </p>
-          {onResetAll && (
-            <button 
-              onClick={onResetAll} 
-              className="w-full px-4 py-2 sm:py-3 bg-red-500/20 text-red-400 font-bold uppercase text-[8px] sm:text-[10px] tracking-widest rounded-xl border border-red-500/30 hover:bg-red-500/30 transition-all active:scale-95 shadow-lg"
-            >
-              Reset Layout
-            </button>
-          )}
         </div>
       )}
     </div>

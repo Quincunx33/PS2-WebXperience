@@ -22,36 +22,35 @@ export interface ControllerProfile {
 
 const DEFAULT_V_POSITIONS = {
   // Shoulder Left (Grouped Top Left)
-  L1: { x: 10, y: 10, scale: 1, opacity: 0.6 },
-  L2: { x: 10, y: 60, scale: 1, opacity: 0.6 },
+  L1: { x: 0, y: 0, scale: 1, opacity: 0.6 },
+  L2: { x: 0, y: 50, scale: 1, opacity: 0.6 },
   // Shoulder Right (Grouped Top Right)
-  R1: { x: -10, y: 10, scale: 1, opacity: 0.6 },
-  R2: { x: -10, y: 60, scale: 1, opacity: 0.6 },
+  R1: { x: 0, y: 0, scale: 1, opacity: 0.6 },
+  R2: { x: 0, y: 50, scale: 1, opacity: 0.6 },
   
   // D-Pad (Top Left, Cross shape)
-  UP: { x: 70, y: -200, scale: 1, opacity: 0.6 },
-  LEFT: { x: 10, y: -140, scale: 1, opacity: 0.6 },
-  RIGHT: { x: 130, y: -140, scale: 1, opacity: 0.6 },
-  DOWN: { x: 70, y: -80, scale: 1, opacity: 0.6 },
+  UP: { x: 60, y: -120, scale: 1, opacity: 0.6 },
+  LEFT: { x: 0, y: -60, scale: 1, opacity: 0.6 },
+  RIGHT: { x: 120, y: -60, scale: 1, opacity: 0.6 },
+  DOWN: { x: 60, y: 0, scale: 1, opacity: 0.6 },
   
   // Left Analog (Below D-Pad, towards center)
-  ANALOG_L: { x: 180, y: -30, scale: 1, opacity: 0.4 },
-  L3: { x: 180, y: -30, scale: 0.8, opacity: 0.2 },
+  ANALOG_L: { x: 120, y: 10, scale: 1, opacity: 0.4 },
+  L3: { x: 120, y: 10, scale: 0.8, opacity: 0.2 },
 
   // Face Buttons (Top Right, Diamond shape)
-  TRIANGLE: { x: -70, y: -200, scale: 1, opacity: 0.6 },
-  SQUARE: { x: -130, y: -140, scale: 1, opacity: 0.6 },
-  CIRCLE: { x: -10, y: -140, scale: 1, opacity: 0.6 },
-  CROSS: { x: -70, y: -80, scale: 1, opacity: 0.6 },
+  TRIANGLE: { x: -60, y: -120, scale: 1, opacity: 0.6 },
+  SQUARE: { x: -120, y: -60, scale: 1, opacity: 0.6 },
+  CIRCLE: { x: 0, y: -60, scale: 1, opacity: 0.6 },
+  CROSS: { x: -60, y: 0, scale: 1, opacity: 0.6 },
   
   // Right Analog (Below Face Buttons, towards center)
-  ANALOG_R: { x: -180, y: -30, scale: 1, opacity: 0.4 },
-  R3: { x: -180, y: -30, scale: 0.8, opacity: 0.2 },
+  ANALOG_R: { x: -120, y: 10, scale: 1, opacity: 0.4 },
+  R3: { x: -120, y: 10, scale: 0.8, opacity: 0.2 },
 
   // Center Area
-  SELECT: { x: -70, y: -120, scale: 1, opacity: 0.6 },
-  START: { x: 70, y: -120, scale: 1, opacity: 0.6 },
-  ANALOG_TOGGLE: { x: 0, y: -90, scale: 0.6, opacity: 0.8 },
+  SELECT: { x: -40, y: -20, scale: 1, opacity: 0.6 },
+  START: { x: 40, y: -20, scale: 1, opacity: 0.6 },
 };
 
 export default function PS2Dashboard() {
@@ -428,13 +427,18 @@ export default function PS2Dashboard() {
 
             {/* Bottom-right layout text removed for cleaner UI */}
             
-            <div className={`fixed top-4 right-4 sm:top-6 sm:right-6 flex flex-col sm:flex-row gap-2 z-[110] transition-all ${selectedKey ? 'opacity-0 pointer-events-none' : ''}`}>
+            {/* Save Button (Top Right) */}
+            <div className={`fixed top-2 right-2 z-[110] transition-all ${selectedKey ? 'opacity-0 pointer-events-none' : ''}`}>
               <button 
                 onClick={() => { soundService.playCancel(); handleSetScreen("main"); }}
-                className="px-4 py-2 bg-blue-600/60 border border-blue-500/30 text-white/90 rounded-md text-[8px] uppercase font-bold tracking-widest active:scale-95 backdrop-blur-sm shadow-xl"
+                className="px-4 py-2 bg-blue-600/60 border border-blue-500/30 text-white/90 rounded-md text-[8px] sm:text-[10px] uppercase font-bold tracking-widest active:scale-95 backdrop-blur-sm shadow-xl"
               >
                 Save
               </button>
+            </div>
+            
+            {/* Reset Button (Top Left) */}
+            <div className={`fixed top-2 left-2 z-[110] transition-all ${selectedKey ? 'opacity-0 pointer-events-none' : ''}`}>
               <button 
                 onClick={() => {
                   if (confirm("Reset ALL button positions and sizes to default?")) {
@@ -442,7 +446,7 @@ export default function PS2Dashboard() {
                     setResetKey(prev => prev + 1);
                   }
                 }}
-                className="px-4 py-2 bg-zinc-800/60 border border-white/5 text-white/30 rounded-md text-[8px] uppercase font-bold tracking-widest active:scale-95 backdrop-blur-sm shadow-xl"
+                className="px-4 py-2 bg-red-600/60 border border-red-500/30 text-white/90 rounded-md text-[8px] sm:text-[10px] uppercase font-bold tracking-widest active:scale-95 backdrop-blur-sm shadow-xl"
               >
                 Reset
               </button>
