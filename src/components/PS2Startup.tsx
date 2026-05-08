@@ -68,18 +68,18 @@ export default function PS2Startup({ onComplete }: { onComplete: () => void }) {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0 }}
-          className="flex flex-col items-center gap-4"
+          className="flex flex-col items-center gap-2 sm:gap-4 px-6 text-center"
         >
-          <div className="text-white font-bold tracking-[0.2em] text-4xl sm:text-6xl flex items-baseline">
+          <div className="text-white font-bold tracking-[0.1em] sm:tracking-[0.2em] text-xl sm:text-4xl md:text-6xl flex items-baseline leading-tight">
             <span>Sony Computer Entertainment</span>
           </div>
           <motion.div 
             initial={{ width: 0 }}
             animate={{ width: "100%" }}
             transition={{ delay: 0.5, duration: 1 }}
-            className="h-[1px] bg-white/50"
+            className="h-[1px] bg-white/50 max-w-2xl w-full"
           />
-          <div className="text-blue-400 font-bold tracking-[0.5em] text-2xl mt-4">
+          <div className="text-blue-400 font-bold tracking-[0.3em] sm:tracking-[0.5em] text-lg sm:text-2xl mt-2 sm:mt-4">
             PlayStation 2
           </div>
         </motion.div>
