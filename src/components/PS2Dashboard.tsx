@@ -12,28 +12,28 @@ type GameMetadata = Omit<StoredGame, 'data'>;
 const DEFAULT_V_POSITIONS = {
   // Shoulder Left (Grouped Top Left)
   L2: { x: 0, y: 0, scale: 1, opacity: 0.6 },
-  L1: { x: 0, y: 56, scale: 1, opacity: 0.6 },
+  L1: { x: 60, y: 0, scale: 1, opacity: 0.6 },
   // Shoulder Right (Grouped Top Right)
   R2: { x: 0, y: 0, scale: 1, opacity: 0.6 },
-  R1: { x: 0, y: 56, scale: 1, opacity: 0.6 },
+  R1: { x: -60, y: 0, scale: 1, opacity: 0.6 },
   // D-Pad (Grouped Bottom Left, Cross shape)
-  UP: { x: 70, y: -140, scale: 1, opacity: 0.6 },
-  DOWN: { x: 70, y: 0, scale: 1, opacity: 0.6 },
-  LEFT: { x: 0, y: -70, scale: 1, opacity: 0.6 },
-  RIGHT: { x: 140, y: -70, scale: 1, opacity: 0.6 },
+  UP: { x: 60, y: -120, scale: 1, opacity: 0.6 },
+  DOWN: { x: 60, y: 0, scale: 1, opacity: 0.6 },
+  LEFT: { x: 0, y: -60, scale: 1, opacity: 0.6 },
+  RIGHT: { x: 120, y: -60, scale: 1, opacity: 0.6 },
   // Face Buttons (Grouped Bottom Right, Diamond shape)
-  TRIANGLE: { x: -70, y: -140, scale: 1, opacity: 0.6 },
-  CROSS: { x: -70, y: 0, scale: 1, opacity: 0.6 },
-  SQUARE: { x: -140, y: -70, scale: 1, opacity: 0.6 },
-  CIRCLE: { x: 0, y: -70, scale: 1, opacity: 0.6 },
+  TRIANGLE: { x: -60, y: -120, scale: 1, opacity: 0.6 },
+  CROSS: { x: -60, y: 0, scale: 1, opacity: 0.6 },
+  SQUARE: { x: -120, y: -60, scale: 1, opacity: 0.6 },
+  CIRCLE: { x: 0, y: -60, scale: 1, opacity: 0.6 },
   // Center
-  SELECT: { x: -60, y: -20, scale: 1, opacity: 0.6 },
-  START: { x: 60, y: -20, scale: 1, opacity: 0.6 },
-  // Analogs
-  ANALOG_L: { x: 200, y: -20, scale: 1, opacity: 0.4 },
-  ANALOG_R: { x: -200, y: -20, scale: 1, opacity: 0.4 },
-  L3: { x: 200, y: -100, scale: 0.8, opacity: 0.4 },
-  R3: { x: -200, y: -100, scale: 0.8, opacity: 0.4 },
+  SELECT: { x: -60, y: -10, scale: 1, opacity: 0.6 },
+  START: { x: 60, y: -10, scale: 1, opacity: 0.6 },
+  // Analogs (Positioned towards the center screen)
+  ANALOG_L: { x: 180, y: -10, scale: 1, opacity: 0.4 },
+  ANALOG_R: { x: -180, y: -10, scale: 1, opacity: 0.4 },
+  L3: { x: 180, y: -80, scale: 0.8, opacity: 0.4 },
+  R3: { x: -180, y: -80, scale: 0.8, opacity: 0.4 },
 };
 
 export default function PS2Dashboard() {
@@ -262,7 +262,7 @@ export default function PS2Dashboard() {
             {renderPortraitGuard()}
             {/* FPS Display */}
             {config.showFPS && (
-              <div className="fixed top-4 right-4 z-[200] font-mono text-[10px] text-green-400 bg-black/40 px-2 py-1 flex items-center gap-2 rounded-full border border-green-500/20 backdrop-blur-md">
+              <div className="fixed top-0 right-0 z-[200] font-mono text-[9px] text-green-400 bg-black/40 px-2 py-1 flex items-center gap-1.5 rounded-bl-lg border-l border-b border-green-500/20 backdrop-blur-md">
                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                 FPS: {fps} / {config.fpsTarget}
               </div>
@@ -293,10 +293,10 @@ export default function PS2Dashboard() {
             <AnimatePresence>
               {selectedKey && (
                 <motion.div 
-                  initial={{ scale: 0.9, opacity: 0, y: 100, x: '-50%' }}
-                  animate={{ scale: 1, opacity: 1, y: 0, x: '-50%' }}
-                  exit={{ scale: 0.9, opacity: 0, y: 100, x: '-50%' }}
-                  className="fixed bottom-4 left-1/2 w-[90%] sm:w-80 bg-zinc-900 border border-white/20 p-4 sm:p-5 rounded-3xl z-[150] backdrop-blur-3xl shadow-2xl max-h-[40vh] overflow-y-auto hidden-scrollbar"
+                  initial={{ scale: 0.9, opacity: 0, x: 20 }}
+                  animate={{ scale: 1, opacity: 1, x: 0 }}
+                  exit={{ scale: 0.9, opacity: 0, x: 20 }}
+                  className="fixed top-1/2 -translate-y-1/2 right-4 w-[280px] sm:w-[300px] bg-zinc-900 border border-white/20 p-4 rounded-3xl z-[150] backdrop-blur-3xl shadow-2xl flex flex-col gap-4 max-h-[80vh] overflow-y-auto hidden-scrollbar"
                 >
                   <div className="flex items-center justify-between mb-3 sm:mb-4 sticky top-0 bg-zinc-900 pt-1 pb-2 z-10 border-b border-white/10">
                     <h3 className="text-blue-400 font-bold uppercase tracking-widest text-[9px] sm:text-[10px] flex items-center gap-2">
@@ -370,29 +370,28 @@ export default function PS2Dashboard() {
             </AnimatePresence>
 
             {/* Header Controls */}
-            <div className={`fixed top-0 left-0 right-0 p-4 sm:p-6 flex justify-between items-start z-[110] transition-all safe-top ${selectedKey ? 'opacity-20 sm:opacity-100 pointer-events-none sm:pointer-events-auto' : ''}`}>
-              <div className="flex flex-col gap-1">
-                 <h2 className="text-white font-bold tracking-[0.2em] uppercase text-[9px] sm:text-xs">Layout Lab</h2>
-                 <span className="text-white/30 text-[7px] sm:text-[8px] uppercase tracking-tighter hidden sm:block">Drag buttons to reposition • Tap to resize</span>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => {
-                    if (confirm("Reset ALL button positions and sizes to default?")) {
-                      setConfig(prev => ({ ...prev, vPositions: DEFAULT_V_POSITIONS }));
-                    }
-                  }}
-                  className="px-3 sm:px-6 py-2 sm:py-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-full text-[8px] sm:text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-red-500/20 active:scale-95"
-                >
-                  Reset
-                </button>
-                <button 
-                  onClick={() => setScreen("main")}
-                  className="px-5 sm:px-8 py-2 sm:py-3 bg-blue-600 border border-blue-500 text-white rounded-full text-[8px] sm:text-[10px] uppercase font-bold tracking-widest shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all hover:bg-blue-500 active:scale-95"
-                >
-                  Save
-                </button>
-              </div>
+            <div className={`fixed top-4 left-4 flex flex-col gap-1 z-[110] transition-all safe-top ${selectedKey ? 'opacity-20 sm:opacity-100 pointer-events-none sm:pointer-events-auto' : ''}`}>
+               <h2 className="text-white font-bold tracking-[0.2em] uppercase text-[9px] sm:text-xs text-shadow-sm">Layout Lab</h2>
+               <span className="text-white/50 text-[7px] sm:text-[8px] uppercase tracking-tighter drop-shadow-md">Drag to reposition • Tap to resize</span>
+            </div>
+            
+            <div className={`fixed top-4 left-1/2 -translate-x-1/2 flex gap-3 z-[110] transition-all safe-top ${selectedKey ? 'opacity-20 sm:opacity-100 pointer-events-none sm:pointer-events-auto' : ''}`}>
+              <button 
+                onClick={() => {
+                  if (confirm("Reset ALL button positions and sizes to default?")) {
+                    setConfig(prev => ({ ...prev, vPositions: DEFAULT_V_POSITIONS }));
+                  }
+                }}
+                className="px-4 sm:px-6 py-2 sm:py-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-full text-[8px] sm:text-[10px] uppercase font-bold tracking-widest transition-all hover:bg-red-500/20 active:scale-95 shadow-lg backdrop-blur-md"
+              >
+                Reset
+              </button>
+              <button 
+                onClick={() => setScreen("main")}
+                className="px-6 sm:px-8 py-2 sm:py-3 bg-blue-600 border border-blue-500 text-white rounded-full text-[8px] sm:text-[10px] uppercase font-bold tracking-widest shadow-[0_0_20px_rgba(59,130,246,0.3)] transition-all hover:bg-blue-500 active:scale-95 backdrop-blur-md"
+              >
+                Save
+              </button>
             </div>
 
             {/* Bottom Safe Area Sync */}
@@ -871,7 +870,7 @@ export default function PS2Dashboard() {
             </div>
 
             {/* In-Game HUD */}
-            <div className={`absolute top-4 right-4 font-mono text-green-500 text-[10px] bg-black/50 px-2 py-1 flex items-center gap-2 rounded-full backdrop-blur border border-white/10 transition-opacity ${config.showFPS ? 'opacity-100' : 'opacity-0'}`}>
+            <div className={`absolute top-0 right-0 font-mono text-green-500 text-[9px] bg-black/50 px-2 py-1 z-[200] flex items-center gap-1.5 rounded-bl-lg backdrop-blur border-l border-b border-white/10 transition-opacity ${config.showFPS ? 'opacity-100' : 'opacity-0'}`}>
                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                 FPS: 59.9
             </div>

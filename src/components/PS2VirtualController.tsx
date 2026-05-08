@@ -73,7 +73,7 @@ export default function PS2VirtualController({
       position: 'fixed' as const,
     };
 
-    if (key.startsWith('R') || ['TRIANGLE', 'CIRCLE', 'CROSS', 'SQUARE', 'ANALOG_R', 'R3'].includes(key)) {
+    if (['R1', 'R2', 'R3', 'ANALOG_R', 'TRIANGLE', 'CIRCLE', 'CROSS', 'SQUARE'].includes(key)) {
       style.left = 'auto'; style.right = margin;
     } else if (['SELECT', 'START'].includes(key)) {
       style.left = '50%';
@@ -81,8 +81,10 @@ export default function PS2VirtualController({
       style.left = margin;
     }
 
-    if ((key.startsWith('L') || key.startsWith('R')) && !key.includes('3')) {
+    if (['L1', 'L2', 'R1', 'R2'].includes(key)) {
       style.top = margin; style.bottom = 'auto';
+    } else if (['SELECT', 'START'].includes(key)) {
+      style.top = 'auto'; style.bottom = margin + 20;
     } else {
       style.top = 'auto'; style.bottom = margin;
     }
