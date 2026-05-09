@@ -1261,7 +1261,7 @@ export default function PS2Dashboard() {
                       };
 
                         const script = document.createElement('script');
-                        script.src = '/play.js';
+                        script.src = 'play.js';
                         script.async = true;
                         script.onload = () => console.log("Engine Script Loaded");
                         script.onerror = () => {
