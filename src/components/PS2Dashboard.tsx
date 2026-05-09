@@ -67,6 +67,7 @@ export default function PS2Dashboard() {
   const [selectedGame, setSelectedGame] = useState<GameMetadata | null>(null);
   const [showError, setShowError] = useState(false);
   const [isEmulatorLoading, setIsEmulatorLoading] = useState(false);
+  const [emulatorStatus, setEmulatorStatus] = useState<string>("");
   const [storedGames, setStoredGames] = useState<GameMetadata[]>([]);
   const [isInstalling, setIsInstalling] = useState(false);
   const [installProgress, setInstallProgress] = useState(0);
@@ -1166,29 +1167,33 @@ export default function PS2Dashboard() {
                       // Authenticate and Run logic
                       onClick={async () => {
                         if (!selectedGame) return;
+                        console.log("[Manager] Initializing Emotion Engine...");
                         soundService.playConfirm();
                         setIsEmulatorLoading(true);
+                        setEmulatorStatus("Preparing VM...");
                       
                         // 1. Fetch the game blob
                         let gameBlob: Blob;
                         try {
+                          setEmulatorStatus("Reading Storage...");
                           gameBlob = await StorageService.getFullFile(selectedGame.id);
                         } catch (err) {
                           console.error("Failed to fetch game data:", err);
-                          alert("Failed to load game data from storage");
+                          setEmulatorStatus("Storage Error");
                           setIsEmulatorLoading(false);
                           return;
                         }
 
-                        // 2. Convert blob to ArrayBuffer upfront to avoid race conditions in preRun
+                        // 2. Convert blob to ArrayBuffer upfront
+                        setEmulatorStatus("Buffering Disc...");
                         const gameBuffer = await gameBlob.arrayBuffer();
 
                         // 3. Inject Emscripten Module Config
-                        const ramMB = config.ramAllocation === "2GB" ? 2048 : (config.ramAllocation === "1GB" ? 1024 : 512);
                         const canvasElem = document.getElementById('canvas') as HTMLCanvasElement;
                         
                         if (!canvasElem) {
                           console.error("Canvas element not found");
+                          setEmulatorStatus("Hardware Error");
                           setIsEmulatorLoading(false);
                           return;
                         }
@@ -1198,19 +1203,15 @@ export default function PS2Dashboard() {
                         canvasElem.width = 640 * scaleFactor;
                         canvasElem.height = 448 * scaleFactor;
                         
-                        // Handle module re-initialization
-                        if ((window as any).Module && (window as any).Module.asm) {
-                          console.warn("Module already exists, attempting hot reload...");
-                        }
-
-                        (window as any).Module = {
+                        // Define Module configuration
+                        const ps2Module = {
                           canvas: canvasElem,
-                          arguments: ['-cdrom', `/games/${selectedGame.name}`],
+                          arguments: [`/games/${selectedGame.name}`],
                           
                           locateFile: (path: string, prefix: string) => {
-                            // Ensure relative paths for GitHub Pages
-                            if (path.endsWith('.wasm')) return 'play.wasm';
-                            if (path.endsWith('.data')) return 'play.data';
+                            console.log(`[Engine] Fetching binary: ${path}`);
+                            if (path.endsWith('.wasm')) return '/play.wasm';
+                            if (path.endsWith('.data')) return '/play.data';
                             return prefix + path;
                           },
 
@@ -1222,56 +1223,78 @@ export default function PS2Dashboard() {
                           },
 
                           preRun: [() => {
-                            const FS = (window as any).FS;
+                            const mod = (window as any).Module;
+                            const FS = mod.FS;
                             if (FS) {
                               try {
+                                console.log("[FS] Mapping virtual drive...");
                                 FS.mkdir('/games');
-                                // Write the pre-fetched buffer immediately
                                 FS.writeFile(`/games/${selectedGame.name}`, new Uint8Array(gameBuffer));
-                                console.log(`[Engine] Virtual File System Ready: /games/${selectedGame.name}`);
+                                console.log(`[FS] Mounted: /games/${selectedGame.name}`);
 
                                 FS.mkdir('/saves');
-                                FS.mount((window as any).IDBFS, {}, '/saves');
+                                FS.mount(mod.IDBFS, {}, '/saves');
                                 FS.syncfs(true, (err: any) => {
-                                  if (err) console.warn('[Engine] Save Sync error:', err);
+                                  if (err) console.warn('[FS] Sync warning:', err);
                                 });
                               } catch(err) {
-                                console.error('[Engine] FS Initialization Failed:', err);
+                                console.error('[FS] Error:', err);
                               }
                             }
                           }],
 
                           onRuntimeInitialized: () => {
-                            console.log("[Engine] Emotion Engine Core Initialized successfully.");
-                            // Sync saves back periodically
+                            console.info("[Engine] Emotion Engine stands ready.");
+                            setEmulatorStatus("Running");
+                            setIsEmulatorLoading(false);
+                            
+                            // Periodic save sync
                             setInterval(() => {
-                              const FS = (window as any).FS;
-                              if (FS && FS.syncfs) {
-                                FS.syncfs(false, () => {});
+                              const mod = (window as any).Module;
+                              if (mod && mod.FS && mod.FS.syncfs) {
+                                mod.FS.syncfs(false, () => {});
                               }
-                            }, 5000);
+                            }, 10000);
                           },
 
-                          print: (text: string) => console.log('[Play!]', text),
+                          print: (text: string) => {
+                            console.log('[Play! Console]', text);
+                            if (text.toLowerCase().includes("loading") || text.toLowerCase().includes("init")) {
+                              setEmulatorStatus(text);
+                            }
+                          },
+                          
                           printErr: (text: string) => {
                             console.error('[Play! Error]', text);
                             if (text.includes("SharedArrayBuffer")) {
-                              alert("Threading error: Please ensure you are running this on a secure context (HTTPS) and COOP/COEP headers are active.");
+                              setEmulatorStatus("Security Error: Check COOP/COEP");
+                            }
+                          },
+
+                          setStatus: (text: string) => {
+                            if (text && text !== "Running...") {
+                                console.log(`[Engine Status] ${text}`);
+                                setEmulatorStatus(text);
                             }
                           }
                         };
 
-                        // 4. Load the Engine Script
+                        // Assign to global
+                        (window as any).Module = ps2Module;
+
+                        setEmulatorStatus("Loading Engine Binaries...");
+
                         const existingScript = document.getElementById('play-engine');
                         if (existingScript) existingScript.remove();
 
                         const script = document.createElement('script');
                         script.id = 'play-engine';
-                        script.src = 'play.js';
+                        script.src = '/play.js';
                         script.async = true;
                         
                         script.onerror = () => {
-                          alert("Fatal: could not load play.js. Please verify the file is present in the server root.");
+                          console.error("[Manager] Engine script load failed.");
+                          setEmulatorStatus("Fatal: Binary Missing");
                           setIsEmulatorLoading(false);
                         };
                         
@@ -1286,12 +1309,14 @@ export default function PS2Dashboard() {
               )}
 
               {/* In-Game HUD & Controls */}
-              {isEmulatorLoading && (
+              {(isEmulatorLoading || emulatorStatus === "Running") && (
                 <>
                   <div className="absolute top-4 left-4 flex flex-col gap-1 pointer-events-none z-20">
                     <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
                       <div className="w-1 h-1 rounded-full bg-green-500 shadow-[0_0_5px_green] animate-pulse" />
-                      <span className="text-[8px] text-white/50 font-mono tracking-wider uppercase">EE Engine: JIT Ready</span>
+                      <span className="text-[8px] text-white/50 font-mono tracking-wider uppercase">
+                        {emulatorStatus === "Running" ? "EE Engine: Active" : emulatorStatus || "Booting..."}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10 w-fit">
                       <span className="text-[8px] text-white/50 font-mono tracking-wider uppercase">FPS: 60.00</span>

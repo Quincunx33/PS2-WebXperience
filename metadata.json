@@ -1,6 +1,6 @@
 {
   "name": "PS2 Web Experience",
-  "description": "Authentic PlayStation 2 dashboard and emulator interface with animation and sound effects. Optimized for GitHub hosting.",
+  "description": "Authentic PlayStation 2 dashboard and emulator interface. To run games, replace play.js and play.wasm in the public folder with official binaries from purei.org.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }
