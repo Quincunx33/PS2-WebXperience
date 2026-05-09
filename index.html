@@ -4,7 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PS2 Virtual Dashboard</title>
-    <script src="coi-serviceworker.js"></script>
+    <script>
+      (function() {
+        const s = document.createElement('script');
+        // Use relative path for GitHub Pages compatibility
+        s.src = 'coi-serviceworker.js';
+        document.head.appendChild(s);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

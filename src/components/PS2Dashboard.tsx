@@ -1163,110 +1163,118 @@ export default function PS2Dashboard() {
                        <span className="text-white/20 text-[9px] uppercase tracking-widest block max-w-[200px] truncate mx-auto">{selectedGame?.name}</span>
                     </div>
                     <button 
+                      // Authenticate and Run logic
                       onClick={async () => {
                         if (!selectedGame) return;
+                        soundService.playConfirm();
                         setIsEmulatorLoading(true);
                       
-                      // Fetch the game blob
-                      let gameBlob: Blob;
-                      try {
-                        gameBlob = await StorageService.getFullFile(selectedGame.id);
-                      } catch (err) {
-                        console.error("Failed to fetch game data:", err);
-                        alert("Failed to load game data from storage");
-                        setIsEmulatorLoading(false);
-                        return;
-                      }
+                        // 1. Fetch the game blob
+                        let gameBlob: Blob;
+                        try {
+                          gameBlob = await StorageService.getFullFile(selectedGame.id);
+                        } catch (err) {
+                          console.error("Failed to fetch game data:", err);
+                          alert("Failed to load game data from storage");
+                          setIsEmulatorLoading(false);
+                          return;
+                        }
 
-                      // Inject Emscripten Module Config
-                      const ramMB = config.ramAllocation === "2GB" ? 2048 : (config.ramAllocation === "1GB" ? 1024 : 512);
-                      
-                      const canvasElem = document.getElementById('canvas') as HTMLCanvasElement;
-                      
-                      const scaleFactor = config.resolution.includes("2x") ? 2 : (config.resolution.includes("3x") ? 3 : 1);
-                      canvasElem.width = 640 * scaleFactor;
-                      canvasElem.height = 448 * scaleFactor;
-                      canvasElem.style.imageRendering = scaleFactor === 1 ? 'pixelated' : 'auto';
+                        // 2. Convert blob to ArrayBuffer upfront to avoid race conditions in preRun
+                        const gameBuffer = await gameBlob.arrayBuffer();
 
-                      canvasElem.oncontextmenu = (e) => e.preventDefault();
-                      canvasElem.tabIndex = -1;
-                      canvasElem.focus();
-
-                      (window as any).Module = {
-                        canvas: canvasElem,
-                        TOTAL_MEMORY: ramMB * 1024 * 1024,
-                        ALLOW_MEMORY_GROWTH: true,
+                        // 3. Inject Emscripten Module Config
+                        const ramMB = config.ramAllocation === "2GB" ? 2048 : (config.ramAllocation === "1GB" ? 1024 : 512);
+                        const canvasElem = document.getElementById('canvas') as HTMLCanvasElement;
                         
-                        arguments: ['-cdrom', `/games/${selectedGame.name}`],
-                        
-                        locateFile: (path: string, prefix: string) => {
-                          if (path.endsWith('.wasm')) return '/play.wasm';
-                          return prefix + path;
-                        },
+                        if (!canvasElem) {
+                          console.error("Canvas element not found");
+                          setIsEmulatorLoading(false);
+                          return;
+                        }
 
-                        webglContextAttributes: {
-                          antialias: false,
-                          alpha: false,
-                          preserveDrawingBuffer: false,
-                          powerPreference: 'high-performance',
-                          depth: true,
-                          stencil: true
-                        },
-
-                        ENV: {
-                          SDL_AUDIO_SAMPLES: '2048',
-                          SDL_AUDIO_CHANNELS: '2',
-                          SDL_AUDIO_FREQ: '44100',
-                          SDL_RENDER_VSYNC: '0'
-                        },
+                        // Set canvas dimensions based on resolution
+                        const scaleFactor = config.resolution === "4K" ? 4 : (config.resolution === "1440p" ? 2.5 : (config.resolution === "1080p" ? 2 : 1));
+                        canvasElem.width = 640 * scaleFactor;
+                        canvasElem.height = 448 * scaleFactor;
                         
-                        preRun: [() => {
-                          console.log(`[Engine] Optimized RAM: ${ramMB}MB initialized`);
+                        // Handle module re-initialization
+                        if ((window as any).Module && (window as any).Module.asm) {
+                          console.warn("Module already exists, attempting hot reload...");
+                        }
+
+                        (window as any).Module = {
+                          canvas: canvasElem,
+                          arguments: ['-cdrom', `/games/${selectedGame.name}`],
                           
-                          const FS = (window as any).FS;
-                          if (FS) {
-                            try {
-                              FS.mkdir('/games');
-                              // Standard Play! build often works better if games are mounted via WORKERFS or written directly
-                              // For simplicity and compatibility with standard Emscripten builds, we write the data if it's not too huge
-                              // or better, we use the Blob directly if WORKERFS is available
-                              if ((window as any).WORKERFS) {
-                                FS.mount((window as any).WORKERFS, {
-                                  blobs: [{ name: selectedGame.name, data: gameBlob }]
-                                }, '/games');
-                                console.log("[Engine] Mounted game via WORKERFS");
-                              } else {
-                                // Fallback to memory write (caution: memory intensive)
-                                gameBlob.arrayBuffer().then(buf => {
-                                  FS.writeFile(`/games/${selectedGame.name}`, new Uint8Array(buf));
-                                  console.log("[Engine] Wrote game to VFS memory");
-                                });
-                              }
+                          locateFile: (path: string, prefix: string) => {
+                            // Ensure relative paths for GitHub Pages
+                            if (path.endsWith('.wasm')) return 'play.wasm';
+                            if (path.endsWith('.data')) return 'play.data';
+                            return prefix + path;
+                          },
 
-                              FS.mkdir('/gta_cache');
-                              FS.mount((window as any).IDBFS, {}, '/gta_cache');
-                              FS.syncfs(true, (err: any) => {
-                                if (err) console.warn('[Engine] VFS Cache Sync warn:', err);
-                              });
-                            } catch(err) {
-                              console.error('[Engine] FS Error:', err);
+                          webglContextAttributes: {
+                            antialias: false,
+                            alpha: false,
+                            preserveDrawingBuffer: false,
+                            powerPreference: 'high-performance',
+                          },
+
+                          preRun: [() => {
+                            const FS = (window as any).FS;
+                            if (FS) {
+                              try {
+                                FS.mkdir('/games');
+                                // Write the pre-fetched buffer immediately
+                                FS.writeFile(`/games/${selectedGame.name}`, new Uint8Array(gameBuffer));
+                                console.log(`[Engine] Virtual File System Ready: /games/${selectedGame.name}`);
+
+                                FS.mkdir('/saves');
+                                FS.mount((window as any).IDBFS, {}, '/saves');
+                                FS.syncfs(true, (err: any) => {
+                                  if (err) console.warn('[Engine] Save Sync error:', err);
+                                });
+                              } catch(err) {
+                                console.error('[Engine] FS Initialization Failed:', err);
+                              }
+                            }
+                          }],
+
+                          onRuntimeInitialized: () => {
+                            console.log("[Engine] Emotion Engine Core Initialized successfully.");
+                            // Sync saves back periodically
+                            setInterval(() => {
+                              const FS = (window as any).FS;
+                              if (FS && FS.syncfs) {
+                                FS.syncfs(false, () => {});
+                              }
+                            }, 5000);
+                          },
+
+                          print: (text: string) => console.log('[Play!]', text),
+                          printErr: (text: string) => {
+                            console.error('[Play! Error]', text);
+                            if (text.includes("SharedArrayBuffer")) {
+                              alert("Threading error: Please ensure you are running this on a secure context (HTTPS) and COOP/COEP headers are active.");
                             }
                           }
-                        }],
-                        print: (text: string) => console.log('[Play!]', text),
-                        printErr: (text: string) => console.error('[Play!]', text),
-                        onRuntimeInitialized: () => {
-                          console.log("[Engine] Runtime Initialized");
-                        }
-                      };
+                        };
+
+                        // 4. Load the Engine Script
+                        const existingScript = document.getElementById('play-engine');
+                        if (existingScript) existingScript.remove();
 
                         const script = document.createElement('script');
+                        script.id = 'play-engine';
                         script.src = 'play.js';
                         script.async = true;
-                        script.onload = () => console.log("Engine Script Loaded");
+                        
                         script.onerror = () => {
-                          alert("Fatal: could not load play.js. Please ensure it exists in the public folder.");
+                          alert("Fatal: could not load play.js. Please verify the file is present in the server root.");
+                          setIsEmulatorLoading(false);
                         };
+                        
                         document.body.appendChild(script);
                       }}
                       className="mt-4 px-10 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-bold uppercase tracking-widest text-xs transition-all shadow-xl shadow-blue-500/20 active:scale-95 border-b-2 border-blue-400"
