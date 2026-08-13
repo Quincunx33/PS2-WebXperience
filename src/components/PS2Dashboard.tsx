@@ -1207,12 +1207,13 @@ export default function PS2Dashboard() {
                         const ps2Module = {
                           canvas: canvasElem,
                           arguments: [`/games/${selectedGame.name}`],
-                          
+
                           locateFile: (path: string, prefix: string) => {
-                            console.log(`[Engine] Fetching binary: ${path}`);
-                            if (path.endsWith('.wasm')) return '/play.wasm';
+                            console.log(`[Engine] Fetching binary: ${path} from ${prefix}`);
+                            if (path.endsWith('.wasm')) return '/Play.wasm';
                             if (path.endsWith('.data')) return '/play.data';
-                            return prefix + path;
+                            // Ensure we point to root for all engine assets
+                            return '/' + path;
                           },
 
                           webglContextAttributes: {
@@ -1232,11 +1233,15 @@ export default function PS2Dashboard() {
                                 FS.writeFile(`/games/${selectedGame.name}`, new Uint8Array(gameBuffer));
                                 console.log(`[FS] Mounted: /games/${selectedGame.name}`);
 
-                                FS.mkdir('/saves');
-                                FS.mount(mod.IDBFS, {}, '/saves');
-                                FS.syncfs(true, (err: any) => {
-                                  if (err) console.warn('[FS] Sync warning:', err);
-                                });
+	                                if (mod.IDBFS) {
+	                                  FS.mkdir('/saves');
+	                                  FS.mount(mod.IDBFS, {}, '/saves');
+	                                  FS.syncfs(true, (err: any) => {
+	                                    if (err) console.warn('[FS] Sync warning:', err);
+	                                  });
+	                                } else {
+	                                  console.warn("[FS] IDBFS not available, saves will not persist");
+	                                }
                               } catch(err) {
                                 console.error('[FS] Error:', err);
                               }
@@ -1263,7 +1268,7 @@ export default function PS2Dashboard() {
                               setEmulatorStatus(text);
                             }
                           },
-                          
+
                           printErr: (text: string) => {
                             console.error('[Play! Error]', text);
                             if (text.includes("SharedArrayBuffer")) {
@@ -1284,21 +1289,41 @@ export default function PS2Dashboard() {
 
                         setEmulatorStatus("Loading Engine Binaries...");
 
-                        const existingScript = document.getElementById('play-engine');
-                        if (existingScript) existingScript.remove();
+                        try {
+                          const engineUrl = '/Play.js';
 
-                        const script = document.createElement('script');
-                        script.id = 'play-engine';
-                        script.src = '/play.js';
-                        script.async = true;
-                        
-                        script.onerror = () => {
-                          console.error("[Manager] Engine script load failed.");
-                          setEmulatorStatus("Fatal: Binary Missing");
+                          // The engine uses a custom discImageDevice interface for file access
+                          const discImageDevice = {
+                            getFileSize: () => gameBuffer.byteLength,
+                            read: (bufferPtr: number, position: number, length: number) => {
+                              const mod = (window as any).Module;
+                              const view = new Uint8Array(gameBuffer, position, length);
+                              mod.HEAPU8.set(view, bufferPtr);
+                            },
+                            isDone: () => true
+                          };
+
+                          // @ts-ignore
+                          ps2Module.discImageDevice = discImageDevice;
+                          // @ts-ignore
+                          ps2Module.mainScriptUrlOrBlob = engineUrl;
+
+                          console.log("[Manager] Loading engine via dynamic import...");
+
+                          // Use a completely dynamic import to bypass Vite's transformation
+                          const module = await new Function(`return import('${engineUrl}?v=${Date.now()}')`)();
+                          const PlayFunc = module.default || (window as any).Play;
+
+                          if (typeof PlayFunc !== 'function') {
+                            throw new Error("Play function not found in module or window");
+                          }
+
+                          await PlayFunc(ps2Module);
+                        } catch (err) {
+                          console.error("[Manager] Engine load failed:", err);
+                          setEmulatorStatus("Fatal: Engine Load Failed");
                           setIsEmulatorLoading(false);
-                        };
-                        
-                        document.body.appendChild(script);
+                        }
                       }}
                       className="mt-4 px-10 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full font-bold uppercase tracking-widest text-xs transition-all shadow-xl shadow-blue-500/20 active:scale-95 border-b-2 border-blue-400"
                     >

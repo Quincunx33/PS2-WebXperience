@@ -12,6 +12,7 @@ var Module=moduleArg;var readyPromiseResolve,readyPromiseReject;var readyPromise
 }
 );
 })();
+if (typeof globalThis !== 'undefined') { globalThis.Play = Play; } else if (typeof window !== 'undefined') { window.Play = Play; }
 export default Play;
 var isPthread = globalThis.self?.name?.startsWith('em-pthread');
 // When running as a pthread, construct a new instance on startup
