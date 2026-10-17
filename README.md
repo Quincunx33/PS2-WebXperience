@@ -142,5 +142,5 @@ No explicit open-source license has been added to this repository yet. Until a l
 [2]: https://github.com/Quincunx33/PS2-WebXperience "PS2 Web Experience source repository"
 
 <div align="center">
-  <sub>Built with curiosity, code, and a little early-2000s nostalgia.</sub>
+  <sub>Built with curiosity, code, and a little early-2000s nostalgia........</sub>
 </div>
